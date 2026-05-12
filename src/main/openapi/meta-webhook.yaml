@@ -1,0 +1,132 @@
+openapi: 3.0.3
+info:
+  title: Meta WhatsApp Webhook API
+  description: API para recibir eventos de WhatsApp Business y validar el handshake.
+  version: 1.0.0
+paths:
+  /webhook:
+    get:
+      tags:
+        - Webhook
+      summary: Verificación de Handshake (Meta)
+      operationId: verifyHandshake
+      parameters:
+        - name: hub.mode
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: hub.verify_token
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: hub.challenge
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Handshake exitoso
+          content:
+            text/plain:
+              schema:
+                type: string
+        "403":
+          description: Token inválido
+    post:
+      tags:
+        - Webhook
+      summary: Recibir eventos de Meta WhatsApp
+      operationId: handleEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MetaEvent'
+      responses:
+        "200":
+          description: Evento procesado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+components:
+  schemas:
+    MetaEvent:
+      type: object
+      properties:
+        object:
+          type: string
+        entry:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entry'
+    Entry:
+      type: object
+      properties:
+        id:
+          type: string
+        changes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Change'
+    Change:
+      type: object
+      properties:
+        value:
+          $ref: '#/components/schemas/Value'
+        field:
+          type: string
+    Value:
+      type: object
+      properties:
+        messaging_product:
+          type: string
+        contacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Contact'
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+    Contact:
+      type: object
+      properties:
+        wa_id:
+          type: string
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        context:
+          $ref: '#/components/schemas/Context'
+        button:
+          $ref: '#/components/schemas/Button'
+        text:
+          $ref: '#/components/schemas/Text'
+    Context:
+      type: object
+      properties:
+        id:
+          type: string
+    Button:
+      type: object
+      properties:
+        text:
+          type: string
+    Text:
+      type: object
+      properties:
+        body:
+          type: string
