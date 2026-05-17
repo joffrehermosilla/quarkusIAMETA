@@ -27,7 +27,7 @@ public class AiFallbackService {
     public String chat(String userMessage) {
         return tryProvider("OpenAI", () -> getOpenAiModel("https://api.openai.com/v1", openAiKey, "gpt-4o"), userMessage,
             () -> tryProvider("DeepSeek", () -> getOpenAiModel("https://api.deepseek.com", deepSeekKey, "deepseek-chat"), userMessage,
-            () -> tryProvider("Groq", () -> getOpenAiModel("https://api.groq.com/openai/v1", groqKey, "llama3-70b-8192"), userMessage,
+            () -> tryProvider("Groq", () -> getOpenAiModel("https://api.groq.com/openai/v1", groqKey, "llama-3.3-70b-versatile"), userMessage,
             () -> tryProvider("Moonshot", () -> getOpenAiModel("https://api.moonshot.cn/v1", moonshotKey, "moonshot-v1-8k"), userMessage,
             () -> tryGemini(userMessage,
             () -> "Lo siento, todos los proveedores de IA están agotados o fuera de línea.")))));

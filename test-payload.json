@@ -1,0 +1,24 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "123",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "contacts": [{"wa_id": "51918209989"}],
+            "messages": [
+              {
+                "id": "msg_123",
+                "type": "text",
+                "text": {"body": "Hola, necesito ayuda con mi préstamo"}
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

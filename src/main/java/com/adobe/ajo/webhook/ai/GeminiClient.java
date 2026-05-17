@@ -7,6 +7,7 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
 
@@ -20,23 +21,41 @@ public interface GeminiClient {
     Map<String, Object> generate(@QueryParam("key") String apiKey, GeminiRequest request);
 
     class GeminiRequest {
-        public List<Content> contents;
+        @JsonProperty("contents")
+        private List<Content> contents;
+
+        public GeminiRequest() {}
         public GeminiRequest(String text) {
             this.contents = List.of(new Content(text));
         }
+
+        public List<Content> getContents() { return contents; }
+        public void setContents(List<Content> contents) { this.contents = contents; }
     }
 
     class Content {
-        public List<Part> parts;
+        @JsonProperty("parts")
+        private List<Part> parts;
+
+        public Content() {}
         public Content(String text) {
             this.parts = List.of(new Part(text));
         }
+
+        public List<Part> getParts() { return parts; }
+        public void setParts(List<Part> parts) { this.parts = parts; }
     }
 
     class Part {
-        public String text;
+        @JsonProperty("text")
+        private String text;
+
+        public Part() {}
         public Part(String text) {
             this.text = text;
         }
+
+        public String getText() { return text; }
+        public void setText(String text) { this.text = text; }
     }
 }
