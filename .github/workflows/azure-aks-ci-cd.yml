@@ -6,11 +6,11 @@ on:
       - main
 
 env:
-  ACR_LOGIN_SERVER: acradobemetadev.azurecr.io
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
   ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
   ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
-  AKS_CLUSTER: aks-adobe-meta-dev
-  AKS_RG: rg-adobe-meta-dev
+  AKS_CLUSTER: ${{ secrets.AKS_CLUSTER_NAME }}
+  AKS_RG: ${{ secrets.RESOURCE_GROUP }}
   IMAGE_NAME: meta-whatsapp-webhook
 
 jobs:
@@ -41,6 +41,11 @@ jobs:
         docker build -f src/main/docker/Dockerfile.jvm -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
         docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
     - name: Set up Helm
       uses: azure/setup-helm@v4
       with:
@@ -51,10 +56,10 @@ jobs:
       with:
         resource-group: ${{ env.AKS_RG }}
         cluster-name: ${{ env.AKS_CLUSTER }}
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: Deploy to AKS with Helm
       run: |
         helm upgrade --install meta-webhook-app ./target/helm/kubernetes/meta-webhook-app \
           --set app.image=${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
           --namespace ajo-namespace --create-namespace
+
