@@ -4,5 +4,5 @@ metadata:
   name: meta-webhook-config
   namespace: ajo-namespace
 data:
-  CDP_ENDPOINT_URL: "https://api.adobe.io/data/core/xcore/e"
-  CDP_FLOW_ID: "your-cdp-flow-id"
+  CDP_ENDPOINT_URL: "https://dcs.adobedc.net/collection/e65e89630b3479fe88994d69106307462dabf30fe2f648b3d178aeded18b3d4d"
+  CDP_FLOW_ID: "086a7d7d-a5bd-41b9-bc84-b75ff53c9f51"
