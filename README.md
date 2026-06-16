@@ -23,53 +23,65 @@
 
 ---
 
-## Architecture Overview
+## Architecture Overview & Data Flow
 
 ```mermaid
 graph TD
-  subgraph Azure
-    subgraph RG[Resource Group<br/>rg-meta-ajo-dev]
-      KV[Key Vault<br/>kv-meta-ajo-dev-001]
-      ACR[Container Registry<br/>acrmetaajodev001.azurecr.io]
-      AKS[AKS Cluster<br/>aks-adobe-meta-dev]
-      APIM[API Management<br/>apim-adobe-meta-dev] 
-      SP[Service Principal]
+  subgraph Meta [Meta / WhatsApp Business]
+    WA[WhatsApp User] -->|Message| Webhook
+  end
+
+  subgraph Azure [Azure Infrastructure]
+    subgraph AKS [AKS: aks-adobe-meta-dev]
+      subgraph Namespace [ajo-namespace]
+        Webhook[Quarkus Webhook App<br/>LoadBalancer IP: 74.179.231.72]
+      end
     end
+    ACR[Azure Container Registry<br/>acrmetaajodev001]
+    KV[Azure Key Vault]
   end
 
-  subgraph GitHub
-    GH[GitHub Repo<br/>springAIQuarkus]
-    GHSecrets[GitHub Secrets]
+  subgraph External Services
+    AI[AI Fallback Service<br/>LangChain4j]
+    CDP[Adobe CDP API]
+    Mongo[(MongoDB Atlas)]
   end
 
-  subgraph K8s[AKS Namespace<br/>ajo-namespace]
-    CM1[ConfigMap<br/>meta-webhook-config]
-    CM2[ConfigMap<br/>ajo-config (non‑secret data)]
-    Deploy[Deployment<br/>ajo-app]
-    CSI[CSI‑driver – secrets‑store]
-    Pod[Pod<br/>ajo‑container]
+  subgraph GitHub [CI/CD Pipeline]
+    Repo[GitHub Repo] -->|Push to main| Action[GitHub Actions]
+    Action -->|1. Build & Push Image| ACR
+    Action -->|2. Deploy via Helm| AKS
   end
 
-  %% Connections
-  GH -->|push triggers| GHActions[GitHub Actions CI/CD]
-  GHSecrets -->|used by| GHActions
-  GHActions -->|build & push image| ACR
-  GHActions -->|kubectl apply| K8s
-  ACR -->|pull image| Pod
-  KV -->|provides secrets| CSI
-  CSI -->|mounts files| Pod
-  SP -->|OIDC federated identity| AKS
-  APIM -->|exposes| Webhook[Adobe CDP Webhook] 
-  Deploy -->|creates| Pod
-  CM1 -->|env variables| Deploy
-  CM2 -->|env variables| Deploy
+  %% Data Flows
+  Webhook -->|1. Save Event| Mongo
+  Webhook -->|2a. If Text Message| AI
+  Webhook -->|2b. If Button Click| CDP
+  KV -->|Inject Secrets| Webhook
 ```
 
-* **AKS** runs Quarkus, authenticates to **Key Vault** via **Workload Identity** (OIDC).  
-* **ConfigMaps** carry non‑sensitive configuration (`CDP_ENDPOINT_URL`, `CDP_FLOW_ID`, etc.).  
-* **CSI driver** (Azure Key Vault provider) injects the sensitive values (`clientId`, `clientSecret`, DB passwords, …) as files inside the container.  
-* **APIM** (optional) can expose the webhook publicly; its gateway URL is used when registering the webhook in Adobe CDP.  
-* **Deployment** creates the pod that runs the application.
+### Functional Flow
+1. **Webhook Reception**: Meta sends a POST request to our exposed LoadBalancer IP (`/webhook`).
+2. **Persistence**: Every incoming message is logged into MongoDB Atlas.
+3. **Routing**:
+   - If the user sends **text**, the app routes the message to the **AI Fallback Service** (LangChain4j) to generate a dynamic response.
+   - If the user clicks a **button**, the app builds a structured payload and sends it to **Adobe CDP** to trigger a journey.
+
+---
+
+## Recent Fixes & Pipeline Resolution (Log)
+
+To achieve the fully functional CI/CD pipeline and expose the endpoint to Meta, the following critical steps were executed:
+
+1. **Dockerfile Creation**: Created `src/main/docker/Dockerfile.jvm` using the `eclipse-temurin:21-jre-alpine` base image and fast-jar Quarkus layout, solving the `lstat no such file or directory` error in GitHub Actions.
+2. **GitHub Actions Workflow Correction**: Updated `.github/workflows/azure-aks-ci-cd.yml` to:
+   - Use dynamic GitHub Secrets (`ACR_LOGIN_SERVER`, `AKS_CLUSTER_NAME`, etc.) instead of hardcoded incorrect values.
+   - Add the `azure/login@v2` step, required for proper authentication before setting the AKS context.
+3. **Helm Generation Fix**: Added the missing `io.quarkiverse.helm:quarkus-helm` (v1.2.3) dependency to `pom.xml`, allowing Quarkus to auto-generate the Helm charts in `target/helm/kubernetes/meta-webhook-app` during the build phase.
+4. **Service Exposure (LoadBalancer)**: 
+   - Dynamically patched the Kubernetes Service to change it from `ClusterIP` to `LoadBalancer`: `kubectl patch svc meta-whatsapp-webhook -n ajo-namespace -p '{"spec": {"type": "LoadBalancer"}}'`.
+   - Updated `application.properties` with `quarkus.kubernetes.service-type=load-balancer` to make this change permanent for future deployments.
+5. **Meta Verification**: Secured the external IP (`74.179.231.72`) and configured it in the Meta Developer Portal with the token `changeit` to establish the handshake.
 
 ---
 
