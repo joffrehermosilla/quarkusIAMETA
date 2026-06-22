@@ -27,14 +27,18 @@
 
 ```mermaid
 graph TD
-  WA[WhatsApp User] -->|HTTPS POST| LB
+  WA[WhatsApp User] -->|HTTPS POST\nmeta-ajo-webhook.eastus.cloudapp.azure.com| LB
 
   subgraph AzureInfra[Azure Infrastructure]
-    LB["LoadBalancer\n74.179.231.72"]
-    LB --> Quarkus
+    LB["LoadBalancer (Ingress)\n20.241.207.1"]
+    LB --> IngressController["NGINX Ingress Controller\n(SSL Termination)"]
+    IngressController -->|HTTP Route /webhook| Quarkus
+    
     subgraph AjoNS[ajo-namespace]
       Quarkus["Quarkus App\nmeta-whatsapp-webhook"]
     end
+    
+    Cert["Cert-Manager\n(Let's Encrypt TLS)"] -.->|issues cert| IngressController
     ACR["Azure Container Registry\nacrmetaajodev001"]
     KV["Azure Key Vault\nkv-meta-ajo-dev-001"]
   end
@@ -80,6 +84,9 @@ To achieve the fully functional CI/CD pipeline and expose the endpoint to Meta, 
    - Dynamically patched the Kubernetes Service to change it from `ClusterIP` to `LoadBalancer`: `kubectl patch svc meta-whatsapp-webhook -n ajo-namespace -p '{"spec": {"type": "LoadBalancer"}}'`.
    - Updated `application.properties` with `quarkus.kubernetes.service-type=load-balancer` to make this change permanent for future deployments.
 5. **Meta Verification**: Secured the external IP (`74.179.231.72`) and configured it in the Meta Developer Portal with the token `changeit` to establish the handshake.
+6. **DNS Domain Association**: Associated the domain label `meta-ajo-webhook` with the NGINX Ingress controller public IP (`20.241.207.1`), creating the FQDN: `meta-ajo-webhook.eastus.cloudapp.azure.com`.
+7. **Cert-Manager Deployment**: Deployed `cert-manager` (v1.12.0) to handle automated TLS certificates using ACME.
+8. **Ingress & TLS Configuration**: Created Let's Encrypt `ClusterIssuers` (staging and production) and deployed the `Ingress` rule to redirect all HTTP/HTTPS traffic to the webhook service and enable TLS termination.
 
 ---
 
