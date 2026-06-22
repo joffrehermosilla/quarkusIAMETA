@@ -27,14 +27,18 @@
 
 ```mermaid
 graph TD
-  WA[WhatsApp User] -->|HTTPS POST| LB
+  WA[WhatsApp User] -->|HTTPS POST\nmeta-ajo-webhook.eastus.cloudapp.azure.com| LB
 
   subgraph AzureInfra[Azure Infrastructure]
-    LB["LoadBalancer\n74.179.231.72"]
-    LB --> Quarkus
+    LB["LoadBalancer (Ingress)\n20.241.207.1"]
+    LB --> IngressController["NGINX Ingress Controller\n(SSL Termination)"]
+    IngressController -->|HTTP Route /webhook| Quarkus
+    
     subgraph AjoNS[ajo-namespace]
       Quarkus["Quarkus App\nmeta-whatsapp-webhook"]
     end
+    
+    Cert["Cert-Manager\n(Let's Encrypt TLS)"] -.->|issues cert| IngressController
     ACR["Azure Container Registry\nacrmetaajodev001"]
     KV["Azure Key Vault\nkv-meta-ajo-dev-001"]
   end
@@ -80,6 +84,9 @@ To achieve the fully functional CI/CD pipeline and expose the endpoint to Meta, 
    - Dynamically patched the Kubernetes Service to change it from `ClusterIP` to `LoadBalancer`: `kubectl patch svc meta-whatsapp-webhook -n ajo-namespace -p '{"spec": {"type": "LoadBalancer"}}'`.
    - Updated `application.properties` with `quarkus.kubernetes.service-type=load-balancer` to make this change permanent for future deployments.
 5. **Meta Verification**: Secured the external IP (`74.179.231.72`) and configured it in the Meta Developer Portal with the token `changeit` to establish the handshake.
+6. **DNS Domain Association**: Associated the domain label `meta-ajo-webhook` with the NGINX Ingress controller public IP (`20.241.207.1`), creating the FQDN: `meta-ajo-webhook.eastus.cloudapp.azure.com`.
+7. **Cert-Manager Deployment**: Deployed `cert-manager` (v1.12.0) to handle automated TLS certificates using ACME.
+8. **Ingress & TLS Configuration**: Created Let's Encrypt `ClusterIssuers` (staging and production) and deployed the `Ingress` rule to redirect all HTTP/HTTPS traffic to the webhook service and enable TLS termination.
 
 ---
 
@@ -589,4 +596,98 @@ This demo project is provided **as‑is** under the MIT License. Feel free to ad
 
 ---
 
+
+## Flujo de Customer ID desde AJO → Meta WhatsApp → Webhook → Adobe CDP
+
+```
+
+mermaid
+sequenceDiagram
+    participant AJO as Adobe Journey Optimizer
+    participant META as Meta WhatsApp API
+    participant USER as Cliente WhatsApp
+    participant WEBHOOK as Quarkus Webhook (AKS)
+    participant CDP as Adobe Experience Platform CDP
+
+    Note over AJO: Customer Profile<br/>customerId=ronald123
+
+    AJO->>META: Send Template Message
+    Note right of AJO: Payload botón<br/>"payload":"SI|customerId=ronald123|templateName"
+
+    META->>USER: Entrega plantilla WhatsApp
+
+    USER->>META: Click Quick Reply
+
+    META->>WEBHOOK: POST /webhook
+    Note right of META: message.context.id<br/>button.payload<br/>wa_id
+
+    WEBHOOK->>WEBHOOK: Parse payload
+    Note over WEBHOOK: customerId=ronald123<br/>reply=SI<br/>templateName=o_cef_mm_p_automatico_util_v3
+
+    WEBHOOK->>CDP: POST Event
+    Note right of WEBHOOK: eventType=whatsapp.feedback.reply
+
+    CDP-->>WEBHOOK: 200 OK
+
+    WEBHOOK-->>META: 200 OK
+```
+## Arquitectura de Integración
+
+```
+
+mermaid
+flowchart LR
+
+    AJO["Adobe Journey Optimizer"]
+    META["Meta WhatsApp Cloud API"]
+    USER["Cliente WhatsApp"]
+    AKS["Quarkus Webhook<br>AKS Kubernetes"]
+    CDP["Adobe Experience Platform CDP"]
+
+    AJO -->|"Template + customerId en payload"| META
+
+    META -->|"Mensaje WhatsApp"| USER
+
+    USER -->|"Quick Reply"| META
+
+    META -->|"Webhook Event"| AKS
+
+    AKS -->|"Extrae customerId"| AKS
+
+    AKS -->|"whatsapp.feedback.reply"| CDP
+```
+## Transformación del Payload
+
+```
+
+mermaid
+flowchart TD
+
+    A["AJO Profile<br/>customerId=ronald123"]
+    B["Payload botón Meta<br/>SI|customerId=ronald123|templateName"]
+    C["Respuesta usuario"]
+    D["Webhook Quarkus"]
+    E["Evento XDM CDP"]
+
+    A --> B
+    B --> C
+    C --> D
+
+    D --> E
+
+    E -->|"identity.customerId = ronald123"| X["Adobe CDP"]
+    E -->|"feedback.reply = SI"| X
+    E -->|"templateName"| X
+    E -->|"wamId"| X
+```
+
+
+
+
+
+---
+
 **Enjoy building!** 🚀
+
+
+
