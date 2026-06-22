@@ -27,37 +27,35 @@
 
 ```mermaid
 graph TD
-  subgraph Meta [Meta / WhatsApp Business]
-    WA[WhatsApp User] -->|Message| Webhook
-  end
+  WA[WhatsApp User] -->|HTTPS POST| LB
 
-  subgraph Azure [Azure Infrastructure]
-    subgraph AKS [AKS: aks-adobe-meta-dev]
-      subgraph Namespace [ajo-namespace]
-        Webhook[Quarkus Webhook App<br/>LoadBalancer IP: 74.179.231.72]
-      end
+  subgraph AzureInfra[Azure Infrastructure]
+    LB["LoadBalancer\n74.179.231.72"]
+    LB --> Quarkus
+    subgraph AjoNS[ajo-namespace]
+      Quarkus["Quarkus App\nmeta-whatsapp-webhook"]
     end
-    ACR[Azure Container Registry<br/>acrmetaajodev001]
-    KV[Azure Key Vault]
+    ACR["Azure Container Registry\nacrmetaajodev001"]
+    KV["Azure Key Vault\nkv-meta-ajo-dev-001"]
   end
 
-  subgraph External Services
-    AI[AI Fallback Service<br/>LangChain4j]
-    CDP[Adobe CDP API]
-    Mongo[(MongoDB Atlas)]
+  subgraph ExternalSvc[External Services]
+    AI["AI Service\nLangChain4j"]
+    CDP["Adobe CDP API"]
+    Mongo[("MongoDB Atlas")]
   end
 
-  subgraph GitHub [CI/CD Pipeline]
-    Repo[GitHub Repo] -->|Push to main| Action[GitHub Actions]
-    Action -->|1. Build & Push Image| ACR
-    Action -->|2. Deploy via Helm| AKS
+  subgraph CICD[CI/CD - GitHub Actions]
+    Repo["GitHub Repo"] -->|push to main| GA["GitHub Actions"]
+    GA -->|build and push| ACR
+    GA -->|helm deploy| AjoNS
   end
 
-  %% Data Flows
-  Webhook -->|1. Save Event| Mongo
-  Webhook -->|2a. If Text Message| AI
-  Webhook -->|2b. If Button Click| CDP
-  KV -->|Inject Secrets| Webhook
+  Quarkus -->|save event| Mongo
+  Quarkus -->|text message| AI
+  Quarkus -->|button click| CDP
+  KV -->|secrets| Quarkus
+  ACR -->|pull image| Quarkus
 ```
 
 ### Functional Flow
@@ -184,7 +182,7 @@ az apim show -g $RG -n $APIM_NAME --query "gatewayUrl" -o tsv
 ### 6️⃣ GitHub Secrets  
 | Secret | Value (paste exactly) |
 |--------|-----------------------|
-| `AZURE_CREDENTIALS` | `json {"clientId":"4ca24142-63e4-4d16-90dc-712b03d48e7d","clientSecret":"<TU_CLIENT_SECRET>","subscriptionId":"1EED0703-BD6C-4E1C-80DA-244268996853","tenantId":"6c6cf498-31a0-4d91-ae90-cb1b77642638","activeDirectoryEndpointUrl":"https://login.microsoftonline.com","resourceManagerEndpointUrl":"https://management.azure.com/","activeDirectoryGraphResourceId":"https://graph.windows.net/","sqlManagementEndpointUrl":"https://management.core.windows.net:8443/","galleryEndpointUrl":"https://gallery.azure.com/","managementEndpointUrl":"https://management.core.windows.net/"}` |
+| `AZURE_CREDENTIALS` | JSON puro (ver bloque abajo) |
 | `ACR_USERNAME` | `acrmetaajodev001` |
 | `ACR_PASSWORD` | `<PASSWORD_FROM_ACR>` *(see step 2‑b below)* |
 | `ACR_LOGIN_SERVER` | `acrmetaajodev001.azurecr.io` |

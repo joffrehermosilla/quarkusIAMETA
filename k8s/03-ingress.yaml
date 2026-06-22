@@ -1,0 +1,48 @@
+---
+# INSTRUCCIÓN IMPORTANTE:
+# Antes de aplicar este archivo, debes reemplazar INGRESS_IP con la IP pública
+# del ingress-nginx-controller (obtenla con: kubectl get svc -n ingress-nginx)
+# y luego asignarle un nombre DNS a esa IP con el comando:
+#
+# INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+# az network public-ip list --query "[?ipAddress=='$INGRESS_IP'].{id:id}" -o tsv
+# Luego obtén el nombre del resource donde está la IP (es el nodeResourceGroup del AKS):
+#
+# NODE_RG=$(az aks show -g rg-meta-ajo-dev -n aks-adobe-meta-dev --query nodeResourceGroup -o tsv)
+# IP_NAME=$(az network public-ip list -g $NODE_RG --query "[?ipAddress=='$INGRESS_IP'].name" -o tsv)
+# az network public-ip update -g $NODE_RG -n $IP_NAME --dns-name meta-ajo-webhook
+#
+# Esto te dará el FQDN:
+#   meta-ajo-webhook.eastus.cloudapp.azure.com
+#
+# Usa ese FQDN en el campo host de abajo.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: meta-whatsapp-webhook-ingress
+  namespace: ajo-namespace
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    # Cambiar a letsencrypt-prod cuando staging funcione
+    cert-manager.io/cluster-issuer: "letsencrypt-staging"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+spec:
+  tls:
+    - hosts:
+        # Reemplaza con tu FQDN real (ej: meta-ajo-webhook.eastus.cloudapp.azure.com)
+        - meta-ajo-webhook.eastus.cloudapp.azure.com
+      secretName: meta-webhook-tls-secret
+  rules:
+    - host: meta-ajo-webhook.eastus.cloudapp.azure.com
+      http:
+        paths:
+          - path: /webhook
+            pathType: Prefix
+            backend:
+              service:
+                name: meta-whatsapp-webhook
+                port:
+                  number: 80
