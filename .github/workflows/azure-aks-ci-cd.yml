@@ -57,6 +57,9 @@ jobs:
         resource-group: ${{ env.AKS_RG }}
         cluster-name: ${{ env.AKS_CLUSTER }}
 
+    - name: Apply ConfigMap (CDP secrets)
+      run: kubectl apply -f k8s/01-configmap.yaml
+
     - name: Deploy to AKS with Helm
       run: |
         helm upgrade --install meta-webhook-app ./target/helm/kubernetes/meta-webhook-app \
