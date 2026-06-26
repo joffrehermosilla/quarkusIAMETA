@@ -223,8 +223,8 @@ metadata:
   name: meta-webhook-config
   namespace: ajo-namespace
 data:
-  CDP_ENDPOINT_URL: "https://dcs.adobedc.net/collection/e65e89630b3479fe88994d69106307462dabf30fe2f648b3d178aeded18b3d4d"
-  CDP_FLOW_ID:      "086a7d7d-a5bd-41b9-bc84-b75ff53c9f51"
+  CDP_ENDPOINT_URL: "ht"
+  CDP_FLOW_ID:      "01"
 ```
 Apply:
 ```bash
@@ -468,8 +468,8 @@ metadata:
   name: meta-webhook-config
   namespace: ajo-namespace
 data:
-  CDP_ENDPOINT_URL: "https://dcs.adobedc.net/collection/e65e89630b3479fe88994d69106307462dabf30fe2f648b3d178aeded18b3d4d"
-  CDP_FLOW_ID: "086a7d7d-a5bd-41b9-bc84-b75ff53c9f51"
+  CDP_ENDPOINT_URL: "link"
+  CDP_FLOW_ID: "08"
 EOF
 
 # ajo‑config (non‑secret data)
