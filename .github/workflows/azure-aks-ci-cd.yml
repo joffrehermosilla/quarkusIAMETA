@@ -62,6 +62,8 @@ jobs:
 
     - name: Deploy to AKS with Helm
       run: |
+        
+        
         helm upgrade --install meta-webhook-app ./target/helm/kubernetes/meta-webhook-app \
           --set app.image=${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
           --namespace ajo-namespace --create-namespace
