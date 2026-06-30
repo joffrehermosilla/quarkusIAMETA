@@ -1,61 +1,98 @@
+# -------------------------------------------------
+# 0️⃣ Variables de Entorno
+# -------------------------------------------------
 $SubscriptionId = "1EED0703-BD6C-4E1C-80DA-244268996853"
-$Location = "eastus"
-$ResourceGroup = "rg-meta-ajo-dev"
-$AcrName = "acradobemetadev"
-$KvName = "kv-meta-ajo-dev-001"
-$AksName = "aks-adobe-meta-dev"
-$ApimName = "apim-adobe-meta-dev"
-$SpName = "sp-ajo-ci-cd"
-$EnvFilePath = "C:\Users\aluca\OneDrive\Desktop\ia\adobe\ajo\springAIQuarkus\.env.local"
+$RG             = "rg-meta-ajo-dev"
+$LOC            = "eastus"
+$ACR_NAME       = "acrmetaajodev001"
+$AKS_NAME       = "aks-adobe-meta-dev"
+$KV_NAME        = "kv-meta-ajo-dev-001"
+$MI_NAME        = "id-meta-webhook" # Managed Identity para el Pod
+$EnvFilePath    = ".\.env.local"
 
-# Set subscription
 az account set --subscription $SubscriptionId
 
-# Create Resource Group
-az group create -n $ResourceGroup -l $Location
+# -------------------------------------------------
+# 1️⃣ Grupo de Recursos y ACR
+# -------------------------------------------------
+az group create -n $RG -l $LOC
+az acr create -g $RG -n $ACR_NAME --sku Basic --admin-enabled true
+$AcrCred = az acr credential show -n $ACR_NAME --query "{username:username,password:passwords[0].value}" -o json | ConvertFrom-Json
 
-# Create ACR
-az acr create -g $ResourceGroup -n $AcrName --sku Basic --admin-enabled true
-$AcrCred = az acr credential show -n $AcrName --query "{username:username,password:passwords[0].value}" -o json | ConvertFrom-Json
+# -------------------------------------------------
+# 2️⃣ Key Vault e Importación de Secretos
+# -------------------------------------------------
+az keyvault create -n $KV_NAME -g $RG -l $LOC --enable-rbac-authorization true --sku standard
 
-# Create Key Vault
-az keyvault create -n $KvName -g $ResourceGroup -l $Location --enable-rbac-authorization true --sku standard
-
-# Import secrets from .env.local
-Get-Content $EnvFilePath |
-  Where-Object { $_ -match '\S' -and $_ -notmatch '^#' } |
-  ForEach-Object {
+# Importa TODO desde el .env.local al Key Vault automáticamente
+Get-Content $EnvFilePath | Where-Object { $_ -match '\S' -and $_ -notmatch '^#' } | ForEach-Object {
     $pair = $_ -split '=',2
-    $key = $pair[0].Trim()
-    $val = $pair[1].Trim()
-    $kvSecretName = $key.ToLower().Replace('_','-')
-    az keyvault secret set -n $kvSecretName --vault-name $KvName --value $val > $null
-  }
+    $kvSecretName = $pair[0].Trim().ToLower().Replace('_','-')
+    az keyvault secret set -n $kvSecretName --vault-name $KV_NAME --value $pair[1].Trim() > $null
+}
 
-# Create Service Principal
-$spJson = az ad sp create-for-rbac -n $SpName --role Contributor --scopes /subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup --sdk-auth -o json
-# Assign AcrPull role to the SP
-$sp = $spJson | ConvertFrom-Json
-az role assignment create --assignee-object-id $sp.appId --role "AcrPull" --scope /subscriptions/$SubscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.ContainerRegistry/registries/$AcrName
+# -------------------------------------------------
+# 3️⃣ AKS con Workload Identity Habilitado
+# -------------------------------------------------
+az aks create -g $RG -n $AKS_NAME --node-count 1 --node-vm-size Standard_D2s_v7 --enable-oidc-issuer --enable-workload-identity --attach-acr $ACR_NAME --generate-ssh-keys -l $LOC
 
-# Create AKS
-az aks create -g $ResourceGroup -n $AksName --node-count 2 --node-vm-size Standard_DS2_v2 --enable-oidc-issuer --enable-workload-identity --attach-acr $AcrName --generate-ssh-keys --location $Location
+# -------------------------------------------------
+# 4️⃣ Azure Workload Identity (El corazón de la seguridad)
+# -------------------------------------------------
+# Crear Managed Identity para la aplicación
+az identity create --name $MI_NAME --resource-group $RG
+$MiClientId = az identity show --name $MI_NAME --resource-group $RG --query 'clientId' -o tsv
 
-# Get AKS credentials (optional, for testing)
-az aks get-credentials -g $ResourceGroup -n $AksName --overwrite-existing
+# Otorgar permiso de LEER SECRETOS en el Key Vault a esta Identidad
+az role assignment create --role "Key Vault Secrets User" --assignee $MiClientId --scope /subscriptions/$SubscriptionId/resourceGroups/$RG/providers/Microsoft.KeyVault/vaults/$KV_NAME
 
-# Create APIM
-az apim create -g $ResourceGroup -n $ApimName --publisher-email "joffre.hermosilla@gmail.com" --publisher-name "Joffre Hermosilla" --sku Developer --location $Location
+# Obtener el Issuer OIDC del clúster AKS
+$AksOidcIssuer = az aks show -n $AKS_NAME -g $RG --query "oidcIssuerProfile.issuerUrl" -o tsv
 
-# Output important values for GitHub secrets
-Write-Host "=== VALUES FOR GITHUB SECRETS ==="
+# Crear la Credencial Federada uniendo Azure AD con Kubernetes
+az identity federated-credential create --name fed-meta-webhook --identity-name $MI_NAME --resource-group $RG --issuer $AksOidcIssuer --subject system:serviceaccount:ajo-namespace:meta-webhook-sa --audience api://AzureADTokenExchange
+
+# -------------------------------------------------
+# 5️⃣ Configuración en Kubernetes (ConfigMaps y ServiceAccount)
+# -------------------------------------------------
+az aks get-credentials -g $RG -n $AKS_NAME --overwrite-existing
+kubectl create namespace ajo-namespace --dry-run=client -o yaml | kubectl apply -f -
+
+# Crear el ServiceAccount con el ClientID de Azure
+@"
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: meta-webhook-sa
+  namespace: ajo-namespace
+  annotations:
+    azure.workload.identity/client-id: "$MiClientId"
+"@ | kubectl apply -f -
+
+# Aplicar el ConfigMap Público (CDP Endpoint, etc)
+@"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: meta-webhook-config
+  namespace: ajo-namespace
+data:
+  CDP_ENDPOINT_URL: "https://dcs.adobedc.net/collection/e65e89630b3479fe88994d69106307462dabf30fe2f648b3d178aeded18b3d4d"
+  CDP_FLOW_ID: "01"
+"@ | kubectl apply -f -
+
+# -------------------------------------------------
+# 6️⃣ Github Actions Service Principal (Solo para el CI/CD)
+# -------------------------------------------------
+$spJson = az ad sp create-for-rbac -n "sp-github-actions" --role Contributor --scopes /subscriptions/$SubscriptionId/resourceGroups/$RG --sdk-auth -o json
+
+Write-Host "`n=== AGREGA ESTO A TUS GITHUB SECRETS ==="
 Write-Host "AZURE_CREDENTIALS=$spJson"
 Write-Host "ACR_USERNAME=$($AcrCred.username)"
 Write-Host "ACR_PASSWORD=$($AcrCred.password)"
-Write-Host "ACR_LOGIN_SERVER=$AcrName.azurecr.io"
-Write-Host "KEYVAULT_NAME=$KvName"
-Write-Host "RESOURCE_GROUP=$ResourceGroup"
-Write-Host "AKS_CLUSTER_NAME=$AksName"
-Write-Host "APIM_NAME=$ApimName"
+Write-Host "ACR_LOGIN_SERVER=$ACR_NAME.azurecr.io"
+Write-Host "KEYVAULT_NAME=$KV_NAME"
+Write-Host "RESOURCE_GROUP=$RG"
+Write-Host "AKS_CLUSTER_NAME=$AKS_NAME"
 Write-Host "SUBSCRIPTION_ID=$SubscriptionId"
-Write-Host "REGION=$Location"
+Write-Host "REGION=$LOC"
