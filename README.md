@@ -856,5 +856,100 @@ dentro de la customizacion que se esta configurando en AJO
 }
 
 
+offre [ ~ ]$ kubectl get pods -n ajo-namespace
+NAME                                     READY   STATUS    RESTARTS   AGE
+meta-whatsapp-webhook-7b7dc8f847-q7wp7   1/1     Running   0          77s
+joffre [ ~ ]$ kubectl get pods -n ajo-namespacekubectl get pods -n ajo-namespace
+Error from server (NotFound): pods "get" not found
+Error from server (NotFound): pods "pods" not found
+joffre [ ~ ]$ kubectl logs meta-whatsapp-webhook-7b7dc8f847-q7wp7  -n ajo-namespace --previous
+Error from server (BadRequest): previous terminated container "meta-whatsapp-webhook" in pod "meta-whatsapp-webhook-7b7dc8f847-q7wp7" not found
+joffre [ ~ ]$ kubectl logs meta-whatsapp-webhook-7b7dc8f847-q7wp7 -n ajo-namespace --previous
+Error from server (BadRequest): previous terminated container "meta-whatsapp-webhook" in pod "meta-whatsapp-webhook-7b7dc8f847-q7wp7" not found
+joffre [ ~ ]$ kubectl logs meta-whatsapp-webhook-7b7dc8f847-q7wp7 -n ajo-namespace 
+__  ____  __  _____   ___  __ ____  ______ 
+ --/ __ \/ / / / _ | / _ \/ //_/ / / / __/ 
+ -/ /_/ / /_/ / __ |/ , _/ ,< / /_/ /\ \   
+--\___\_\____/_/ |_/_/|_/_/|_|\____/___/   
+2026-07-05 04:12:33,548 WARN  [io.qua.config] (main) Unrecognized configuration key "quarkus.azure.keyvault.config-ordinal" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+2026-07-05 04:12:34,453 INFO  [io.quarkus] (main) meta-whatsapp-webhook 1.0.0-SNAPSHOT on JVM (powered by Quarkus 3.10.0) started in 1.227s. Listening on: http://0.0.0.0:8080
+2026-07-05 04:12:34,454 INFO  [io.quarkus] (main) Profile prod activated. 
+2026-07-05 04:12:34,454 INFO  [io.quarkus] (main) Installed features: [azure-keyvault-secret, cdi, kubernetes, mongodb-client, mongodb-panache, narayana-jta, rest, rest-client, rest-client-jackson, rest-jackson, smallrye-context-propagation, smallrye-health, smallrye-openapi, vertx]
+2026-07-05 04:12:40,644 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:12:40 +0000] "GET /health/started HTTP/1.1" 200 45
+2026-07-05 04:12:40,981 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:12:40 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:12:50,550 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:12:50 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:12:50,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:12:50 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:00,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:00 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:00,975 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:00 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:10,550 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:10 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:10,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:10 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:20,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:20 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:21,005 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:21 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:30,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:30 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:30,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:30 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:40,550 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:40 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:40,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:40 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:50,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:50 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:50,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:50 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:00,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:00 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:00,982 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:00 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:10,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:10 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:10,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:10 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:20,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:20 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:20,973 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:20 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:30,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:30 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:30,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:30 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:40,550 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:40 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:40,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:40 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:50,550 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:50 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:50,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:50 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:15:00,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:15:00 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:15:00,973 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:15:00 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:15:10,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:15:10 +0000] "GET /health/live HTTP/1.1" 200 45
+joffre [ ~ ]$ curl -i "https://meta-ajo-webhook.eastus.cloudapp.azure.com/webhook?hub.mode=subscribe&hub.verify_token=changeit&hub.challenge=123456"
+HTTP/2 200 
+date: Sun, 05 Jul 2026 04:17:32 GMT
+content-type: text/plain;charset=UTF-8
+content-length: 6
+strict-transport-security: max-age=31536000; includeSubDomains
+
+123456joffre [kubectl get ingress -n ajo-namespaceespace
+NAME                            CLASS    HOSTS                                        ADDRESS        PORTS     AGE
+meta-whatsapp-webhook-ingress   <none>   meta-ajo-webhook.eastus.cloudapp.azure.com   20.241.207.1   80, 443   13d
+joffre [ ~ ]$ kubectl describe ingress meta-whatsapp-webhook-ingress -n ajo-namespace
+Name:             meta-whatsapp-webhook-ingress
+Labels:           <none>
+Namespace:        ajo-namespace
+Address:          20.241.207.1
+Ingress Class:    <none>
+Default backend:  <default>
+TLS:
+  meta-webhook-tls-secret terminates meta-ajo-webhook.eastus.cloudapp.azure.com
+Rules:
+  Host                                        Path  Backends
+  ----                                        ----  --------
+  meta-ajo-webhook.eastus.cloudapp.azure.com  
+                                              /webhook   meta-whatsapp-webhook:80 (10.244.0.213:8080)
+Annotations:                                  cert-manager.io/cluster-issuer: letsencrypt-prod
+                                              kubernetes.io/ingress.class: nginx
+                                              nginx.ingress.kubernetes.io/proxy-body-size: 10m
+                                              nginx.ingress.kubernetes.io/proxy-read-timeout: 60
+                                              nginx.ingress.kubernetes.io/proxy-send-timeout: 60
+                                              nginx.ingress.kubernetes.io/ssl-redirect: true
+Events:                                       <none>
+joffre [ ~ ]$ kubectl get svc -n ajo-namespace
+NAME                    TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+meta-whatsapp-webhook   ClusterIP   10.0.75.30   <none>        80/TCP    18d
+joffre [ ~ ]$ kubectl get endpoints -n ajo-namespace
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME                    ENDPOINTS           AGE
+meta-whatsapp-webhook   10.244.0.213:8080   18d
+joffre [ ~ ]$ 
+
 
 az aks get-credentials --resource-group rg-meta-ajo-dev --name aks-adobe-meta-dev
+
+
+offre [ ~ ]$ kubectl exec -it -n ajo-namespace deploy/meta-whatsapp-webhook -- printenv | grep MONGODB
+MONGODB_URI=mongodb+srv://joffre:joffre@bootcamp-microservicios.c9yhl.mongodb.net/ajo-cdp-meta-db?retryWrites=true&w=majority
+joffre [ ~ ]$ 

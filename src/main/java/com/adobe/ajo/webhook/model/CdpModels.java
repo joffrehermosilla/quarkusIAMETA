@@ -3,88 +3,65 @@ package com.adobe.ajo.webhook.model;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.List;
-
 public interface CdpModels {
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    record CdpPayload(
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        record CdpPayload(
 
-            @JsonProperty("_id") String id,
+                        @JsonProperty("_id") String id,
 
-            String timestamp,
+                        String eventType,
 
-            @JsonProperty("_bcp") Bcp bcp
+                        String timestamp,
 
-    ) {
-    }
+                        @JsonProperty("_bcp") Bcp bcp
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    record Bcp(
+        ) {
+        }
 
-            IdentityMap identityMap,
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        record Bcp(
 
-            Transient transientData
+                        Identity identity,
 
-    ) {
-    }
+                        Transient transientData
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    record IdentityMap(
+        ) {
+        }
 
-            List<WhatsappIdentity> whatsapp
+        record Identity(
 
-    ) {
-    }
+                        String customerId
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    record WhatsappIdentity(
+        ) {
+        }
 
-            String id,
+        record Transient(
 
-            boolean primary
+                        Customer customer
 
-    ) {
-    }
+        ) {
+        }
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    record Transient(
+        record Customer(
 
-            Customer customer
+                        Feedback feedback
 
-    ) {
-    }
+        ) {
+        }
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    record Customer(
+        record Feedback(
 
-            Feedback feedback
+                        String reply,
 
-    ) {
-    }
+                        String channel,
 
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    record Feedback(
+                        String templateName,
 
-            String channel,
+                        String templateWamId,
 
-            String messageType,
+                        String wamId
 
-            String buttonReply,
-
-            String message,
-
-            String templateWamId,
-
-            String wamId,
-
-            String conversationId,
-
-            String campaign,
-
-            String source
-
-    ) {
-    }
-
+        ) {
+        }
 }

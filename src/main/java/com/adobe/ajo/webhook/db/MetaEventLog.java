@@ -32,12 +32,15 @@ public class MetaEventLog extends ReactivePanacheMongoEntity {
 
     public String source;
 
+    public String buttonPayload;
+
     public static MetaEventLog create(
             String waId,
             String messageId,
             String originalMessageId,
             String type,
-            String content) {
+            String content,
+            String buttonPayload) {
 
         MetaEventLog log = new MetaEventLog();
 
@@ -50,6 +53,7 @@ public class MetaEventLog extends ReactivePanacheMongoEntity {
         log.direction = "INBOUND";
         log.status = "RECEIVED";
         log.source = "META";
+        log.buttonPayload = buttonPayload;
         log.createdAt = Instant.now();
 
         return log;

@@ -76,12 +76,18 @@ public class WebhookResource implements WebhookApi {
 
         String content = "";
 
+        String buttonPayload = null;
+
         if ("text".equals(type) && message.getText() != null) {
             content = message.getText().getBody();
         }
 
         if ("button".equals(type) && message.getButton() != null) {
+
             content = message.getButton().getText();
+
+            buttonPayload = message.getButton().getPayload();
+
         }
 
         String originalMessageId = Optional.ofNullable(message.getContext())
@@ -93,7 +99,8 @@ public class WebhookResource implements WebhookApi {
                 message.getId(),
                 originalMessageId,
                 type,
-                content);
+                content,
+                buttonPayload);
 
         try {
 
@@ -127,8 +134,10 @@ public class WebhookResource implements WebhookApi {
         }
 
         if ("button".equals(type)) {
-
-            return processWithCdp(log, content);
+            return processWithCdp(
+                    log,
+                    content,
+                    buttonPayload);
 
         }
 
@@ -136,21 +145,34 @@ public class WebhookResource implements WebhookApi {
     }
 
     private Response processWithCdp(
+
             MetaEventLog log,
 
-            String buttonReply) {
-        System.out.println(">>> Sending to CDP: " + buttonReply);
-        String originalWamId = log.originalMessageId;
+            String buttonReply,
 
+            String buttonPayload) {
+        System.out.println(">>> Sending to CDP: " + buttonPayload);
+        String originalWamId = log.originalMessageId;
+        String customerId = extract(buttonPayload, "customerId");
+
+        String templateName = extract(buttonPayload, "templatename");
         var payload = buildCdpPayload(
-                log.waId,
+
+                customerId,
+
+                templateName,
+
                 log.messageId,
+
                 originalWamId,
+
                 buttonReply);
         try {
 
             log.cdpPayload = mapper.writeValueAsString(payload);
-
+            System.out.println(
+                    mapper.writerWithDefaultPrettyPrinter()
+                            .writeValueAsString(payload));
             cdpClient.sendEvent(payload).await().indefinitely();
 
             log.sentToCdpAt = Instant.now();
@@ -184,7 +206,9 @@ public class WebhookResource implements WebhookApi {
 
     private CdpModels.CdpPayload buildCdpPayload(
 
-            String waId,
+            String customerId,
+
+            String templateName,
 
             String replyWamId,
 
@@ -192,47 +216,51 @@ public class WebhookResource implements WebhookApi {
 
             String buttonReply) {
 
-        var whatsappIdentity = new CdpModels.WhatsappIdentity(
-                waId,
-                true);
-
-        var identityMap = new CdpModels.IdentityMap(
-                List.of(whatsappIdentity));
+        var identity = new CdpModels.Identity(customerId);
 
         var feedback = new CdpModels.Feedback(
-
-                "whatsapp",
-
-                "button",
-
                 buttonReply,
-
-                null,
-
+                "whatsapp",
+                templateName,
                 originalWamId,
-
-                replyWamId,
-
-                null,
-
-                null,
-
-                "META");
+                replyWamId);
 
         var customer = new CdpModels.Customer(feedback);
 
         var transientData = new CdpModels.Transient(customer);
 
         var bcp = new CdpModels.Bcp(
-                identityMap,
+                identity,
                 transientData);
 
         return new CdpModels.CdpPayload(
 
                 UUID.randomUUID().toString(),
 
+                "whatsapp.feedback.reply",
+
                 Instant.now().toString(),
 
                 bcp);
+
+    }
+
+    private String extract(String payload, String key) {
+
+        if (payload == null) {
+            return null;
+        }
+
+        for (String part : payload.split("\\|")) {
+
+            if (part.startsWith(key + "=")) {
+
+                return part.substring((key + "=").length());
+
+            }
+
+        }
+
+        return null;
     }
 }
