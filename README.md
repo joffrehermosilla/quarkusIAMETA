@@ -177,7 +177,7 @@ az apim create `
     -g $RG `
     -n $APIM_NAME `
     -l $LOC `
-    --publisher-email "joffre.hermosilla@gmail.com" `
+    --publisher-email "joom" `
     --publisher-name "Joffre Hermosilla" `
     --sku-name Developer
 ```
@@ -380,7 +380,7 @@ Monitor execution in **GitHub → Actions**.
 Puedes usar Postman o tu terminal local para enviar este payload de prueba directamente a tu clúster en AKS usando el dominio configurado.
 
 ```bash
-curl -X POST "http://meta-ajo-webhook.eastus.cloudapp.azure.com/whatsapp/webhook" \
+curl -X POST "http.com/whatsapp/webhook" \
 -H "Content-Type: application/json" \
 -d '{
   "object": "whatsapp_business_account",
@@ -391,7 +391,7 @@ curl -X POST "http://meta-ajo-webhook.eastus.cloudapp.azure.com/whatsapp/webhook
         {
           "value": {
             "messaging_product": "whatsapp",
-            "contacts": [{"wa_id": "51918209989"}],
+            "contacts": [{"wa_id": "5989"}],
             "messages": [
               {
                 "id": "msg_123",
@@ -498,7 +498,7 @@ metadata:
   name: meta-webhook-config
   namespace: ajo-namespace
 data:
-  CDP_ENDPOINT_URL: "https://dcs.adobedc.net/collection/e65e89630b3479fe88994d69106307462dabf30fe2f648b3d178aeded18b3d4d"
+  CDP_ENDPOINT_URL: "h8b3d4d"
   CDP_FLOW_ID: "01"
 "@ | kubectl apply -f -
 
@@ -544,7 +544,7 @@ sequenceDiagram
     Note right of META: message.context.id<br/>button.payload<br/>wa_id
 
     WEBHOOK->>WEBHOOK: Parse payload
-    Note over WEBHOOK: customerId=ronald123<br/>reply=SI<br/>templateName=o_cef_mm_p_automatico_util_v3
+    Note over WEBHOOK: customerId=ro3<br/>reply=SI<br/>templateName=o_cef_mm_p_a
 
     WEBHOOK->>CDP: POST Event
     Note right of WEBHOOK: eventType=whatsapp.feedback.reply
@@ -613,7 +613,7 @@ flowchart TD
 
 
 
-joffre [ ~ ]$ kubectl get deployment meta-whatsapp-webhook \ -n ajo-namespace \ -o yaml | grep -A120 "env:" - env: - name: KUBERNETES_NAMESPACE valueFrom: fieldRef: apiVersion: v1 fieldPath: metadata.namespace - name: CDP_FLOW_ID value: f3cffd10-8fe9-4952-9e39-91d03bab4f85 - name: OPENAI_API_KEY value: dummy - name: MINIMAX_API_KEY value: dummy - name: MOONSHOT_KEY value: dummy - name: CDP_AUTH_TOKEN value: dummy - name: GROQ_API_KEY value: dummy - name: META_VERIFY_TOKEN value: changeit - name: GOOGLE_AI_API_KEY value: dummy - name: MONGODB_URI value: mongodb://localhost:27017 - name: CDP_ENDPOINT_URL value: https://dcs.adobedc.net/collection/e65e89630b3479fe88994d69106307462dabf30fe2f648b3d178aeded18b3d4d - name: DEEPSEEK_API_KEY value: dummy envFrom: - configMapRef: name: meta-webhook-config image: acrmetaajodev001.azurecr.io/meta-whatsapp-webhook:84c364bb98794ab99840448ac3ce841b894d98ff imagePullPolicy: Always name: meta-whatsapp-webhook ports: - containerPort: 8080 name: http protocol: TCP resources: {} terminationMessagePath: /dev/termination-log terminationMessagePolicy: File dnsPolicy: ClusterFirst restartPolicy: Always schedulerName: default-scheduler securityContext: {} terminationGracePeriodSeconds: 30 status: availableReplicas: 1 conditions: - lastTransitionTime: "2026-06-20T14:36:24Z" lastUpdateTime: "2026-06-20T14:36:24Z" message: Deployment has minimum availability. reason: MinimumReplicasAvailable status: "True" type: Available - lastTransitionTime: "2026-06-16T04:26:40Z" lastUpdateTime: "2026-06-28T21:18:42Z" message: ReplicaSet "meta-whatsapp-webhook-559c6c8f49" has successfully progressed. reason: NewReplicaSetAvailable status: "True" type: Progressing observedGeneration: 9 readyReplicas: 1 replicas: 1 updatedReplicas: 1 joffre [ ~ ]$ kubectl describe secret meta-webhook-secrets \ -n ajo-namespace Name: meta-webhook-secrets Namespace: ajo-namespace Labels: <none> Annotations: <none> Type: Opaque Data ==== CDP_AUTH_TOKEN: 3 bytes DEEPSEEK_API_KEY: 3 bytes GOOGLE_AI_API_KEY: 3 bytes GROQ_API_KEY: 3 bytes META_VERIFY_TOKEN: 3 bytes MINIMAX_API_KEY: 3 bytes MONGODB_URI: 3 bytes MOONSHOT_KEY: 3 bytes OPENAI_API_KEY: 3 bytes joffre [ ~ ]$
+joffre [ ~ ]$ kubectl get deployment meta-whatsapp-webhook \ -n ajo-namespace \ -o yaml | grep -A120 "env:" - env: - name: KUBERNETES_NAMESPACE valueFrom: fieldRef: apiVersion: v1 fieldPath: metadata.namespace - name: CDP_FLOW_ID value: f3cffd10-8fe9-4952-9e39-91d03bab4f85 - name: OPENAI_API_KEY value: dummy - name: MINIMAX_API_KEY value: dummy - name: MOONSHOT_KEY value: dummy - name: CDP_AUTH_TOKEN value: dummy - name: GROQ_API_KEY value: dummy - name: META_VERIFY_TOKEN value: changeit - name: GOOGLE_AI_API_KEY value: dummy - name: MONGODB_URI value: mongodb://localhost:27017 - name: CDP_ENDPOINT_URL value: https://dcs.adobedc.net/collection/e65e89630b3479fe88994d69106307462dabf30fe2f648b3d178aeded18b3d4d - name: DEEPSEEK_API_KEY value: dummy envFrom: - configMapRef: name: meta-webhook-config image: acrmetaajodev001.azurecr.io/meta-whatsapp-webhook:84c364bimagePullPolicy: Always name: meta-whatsapp-webhook ports: - containerPort: 8080 name: http protocol: TCP resources: {} terminationMessagePath: /dev/termination-log terminationMessagePolicy: File dnsPolicy: ClusterFirst restartPolicy: Always schedulerName: default-scheduler securityContext: {} terminationGracePeriodSeconds: 30 status: availableReplicas: 1 conditions: - lastTransitionTime: "2026-06-20T14:36:24Z" lastUpdateTime: "2026-06-20T14:36:24Z" message: Deployment has minimum availability. reason: MinimumReplicasAvailable status: "True" type: Available - lastTransitionTime: "2026-06-16T04:26:40Z" lastUpdateTime: "2026-06-28T21:18:42Z" message: ReplicaSet "meta-whatsapp-webhook-559c6c8f49" has successfully progressed. reason: NewReplicaSetAvailable status: "True" type: Progressing observedGeneration: 9 readyReplicas: 1 replicas: 1 updatedReplicas: 1 joffre [ ~ ]$ kubectl describe secret meta-webhook-secrets \ -n ajo-namespace Name: meta-webhook-secrets Namespace: ajo-namespace Labels: <none> Annotations: <none> Type: Opaque Data ==== CDP_AUTH_TOKEN: 3 bytes DEEPSEEK_API_KEY: 3 bytes GOOGLE_AI_API_KEY: 3 bytes GROQ_API_KEY: 3 bytes META_VERIFY_TOKEN: 3 bytes MINIMAX_API_KEY: 3 bytes MONGODB_URI: 3 bytes MOONSHOT_KEY: 3 bytes OPENAI_API_KEY: 3 bytes joffre [ ~ ]$
 
 kubectl delete secret meta-webhook-secrets -n ajo-namespace secret "meta-webhook-secrets" deleted from ajo-namespace namespace joffre [ ~ ]$ kubectl create secret generic meta-webhook-secrets \ -n ajo-namespace \ --from-literal=MONGODB_URI='mongodb+srv://joffre:joffre@bootcamp-microservicios.c9yhl.mongodb.net/ajo_meta_db?retryWrites=true' \ --from-literal=META_VERIFY_TOKEN='changeit' secret/meta-webhook-secrets created joffre [ ~ ]$ kubectl describe secret meta-webhook-secrets -n ajo-namespace Name: meta-webhook-secrets Namespace: ajo-namespace Labels: <none> Annotations: <none> Type: Opaque Data ==== META_VERIFY_TOKEN: 8 bytes MONGODB_URI: 98 bytes joffre [ ~ ]$ grep -R "mongodb://localhost:27017" . joffre [ ~ ]$ grep -R "OPENAI_API_KEY" . ./.bash_history:kubectl create secret generic meta-webhook-secrets -n ajo-namespace --from-literal=MONGODB_URI='...' --from-literal=OPENAI_API_KEY='...' --from-literal=DEEPSEEK_API_KEY='...' --from-literal=GROQ_API_KEY='...' --from-literal=GOOGLE_AI_API_KEY='...' --from-literal=MOONSHOT_KEY='...' --from-literal=MINIMAX_API_KEY='...' --from-literal=CDP_AUTH_TOKEN='...' --from-literal=META_VERIFY_TOKEN='...' --dry-run=client -o yaml | kubectl apply -f - joffre [ ~ ]$ grep -R "quarkus.kubernetes.env" . joffre [ ~ ]$
 
@@ -724,7 +724,7 @@ export default defineComponent({
 
  // ✅ Endpoint Adobe CDP
  const url =
- "https://dcs.adobedc.net/collection/e65e89630b3479fe88994d69106307462dabf30fe2f648b3d178aeded18b3d4d";
+ "https://dcs";
 
  // ✅ Envío a CDP
  await axios.post(url, cdpPayload, {
@@ -747,7 +747,7 @@ export default defineComponent({
 
 
 curl --location --request POST 'https://graph.facebook.com/v22.0/1039463512592670/messages' \
---header 'Authorization: Bearer EAAVSoi2xF7YBRk4fCdZAFL7ZBZCr7HRhHBgZB2K7ZCQmFILMZChG3wlKjfct2MlF83CxcYmMP2qimCUxiyHZCO7e0pBpLl1I0NrndOaAmlzmZCJzu0f32ZALnFj8VYkS9xyTcZBnXWTsa6WGa9hETSXbFDbIbNrl2Xf2VlM4Ute11nrwf5KpzDUKoJEmZAle9JEQHXsOyHt01OBKtnLPBueBTJQf8zEdIH4XGMai8ic' \
+--header 'Authorization: Bearer EAAVSoi2xF7YBRk4fC' \
 --header 'Content-Type: application/json' \
 --data-raw '{
   "messaging_product": "whatsapp",
@@ -765,7 +765,7 @@ curl --location --request POST 'https://graph.facebook.com/v22.0/103946351259267
           {
             "type": "image",
             "image": {
-              "link": "https://delivery-p187030-e1959235.adobeaemcloud.com/adobe/assets/urn:aaid:aem:64012564-d3d4-46ab-af25-c329a0f2a4b8/as/CEF-PDH-V2.avif?width=1024&quality=65&assetName=CEF-PDH-V2.png"
+              "link": "https"
             }
           }
         ]
