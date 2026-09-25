@@ -177,7 +177,7 @@ az apim create `
     -g $RG `
     -n $APIM_NAME `
     -l $LOC `
-    --publisher-email "joffre.hermosilla@gmail.com" `
+    --publisher-email "joom" `
     --publisher-name "Joffre Hermosilla" `
     --sku-name Developer
 ```
@@ -223,8 +223,8 @@ metadata:
   name: meta-webhook-config
   namespace: ajo-namespace
 data:
-  CDP_ENDPOINT_URL: "https://dcs.adobedc.net/collection/e65e89630b3479fe88994d69106307462dabf30fe2f648b3d178aeded18b3d4d"
-  CDP_FLOW_ID:      "086a7d7d-a5bd-41b9-bc84-b75ff53c9f51"
+  CDP_ENDPOINT_URL: "ht"
+  CDP_FLOW_ID:      "01"
 ```
 Apply:
 ```bash
@@ -377,216 +377,138 @@ Monitor execution in **GitHub → Actions**.
 ---
 
 ## Testing the Webhook  
-1. Retrieve the external IP of the Service (or the APIM gateway URL if you created APIM):  
+Puedes usar Postman o tu terminal local para enviar este payload de prueba directamente a tu clúster en AKS usando el dominio configurado.
+
 ```bash
-kubectl get svc ajo-svc -n ajo-namespace
+curl -X POST "http.com/whatsapp/webhook" \
+-H "Content-Type: application/json" \
+-d '{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "123",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "contacts": [{"wa_id": "5989"}],
+            "messages": [
+              {
+                "id": "msg_123",
+                "type": "text",
+                "text": {"body": "Hola, necesito ayuda con mi préstamo"}
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}'
 ```
-The column `EXTERNAL-IP` will be a public IP (e.g. `20.70.xxx.xxx`).  
-2. Send a test POST request to the webhook endpoint (replace `<IP>` with the value you obtained):  
+
+Verifica en los logs de tu pod que el request se recibe exitosamente:
 ```bash
-curl -X POST "http://<IP>/whatsapp/webhook" \
-     -H "Content-Type: application/json" \
-     -d '{"message":"Hello from test"}'
-```
-3. Verify in the pod logs that the request is processed and that the payload is forwarded to **Adobe CDP** using the values from `meta-webhook-config`.  
-```bash
-POD=$(kubectl get pods -n ajo-namespace -l app=ajo -o jsonpath="{.items[0].metadata.name}")
-kubectl logs $POD -n ajo-namespace
+kubectl logs deployment/meta-whatsapp-webhook -n ajo-namespace
 ```
 ---
 
+
 ## Full Command Reference  
-Below is a **single‑shot script** (PowerShell) you can copy‑paste to recreate the whole environment from scratch (except the optional APIM part).  
+
+A continuación, el script automatizado en PowerShell para aprovisionar toda la infraestructura, configurar Azure Workload Identity e inyectar permisos de Key Vault de forma nativa.
+
 ```powershell
 # -------------------------------------------------
-# 0️⃣ Variables
+# 0️⃣ Variables de Entorno
 # -------------------------------------------------
-$RG          = "rg-meta-ajo-dev"
-$LOC         = "eastus"
-$ACR_NAME    = "acrmetaajodev001"
-$AKS_NAME    = "aks-adobe-meta-dev"
-$SP_ID       = "4ca24142-63e4-4d16-90dc-712b03d48e7d"
-$KV_NAME     = "kv-meta-ajo-dev-001"
-$APIM_NAME   = "apim-adobe-meta-dev"
+$SubscriptionId = "1EED0703-BD6C-4E1C-80DA-244268996853"
+$RG             = "rg-meta-ajo-dev"
+$LOC            = "eastus"
+$ACR_NAME       = "acrmetaajodev001"
+$AKS_NAME       = "aks-adobe-meta-dev"
+$KV_NAME        = "kv-meta-ajo-dev-001"
+$MI_NAME        = "id-meta-webhook" # Managed Identity para el Pod
+$EnvFilePath    = ".\.env.local"
+
+az account set --subscription $SubscriptionId
+
 # -------------------------------------------------
-# 1️⃣ Resource Group
+# 1️⃣ Grupo de Recursos y ACR
 # -------------------------------------------------
 az group create -n $RG -l $LOC
+az acr create -g $RG -n $ACR_NAME --sku Basic --admin-enabled true
 
 # -------------------------------------------------
-# 2️⃣ ACR
+# 2️⃣ Key Vault e Importación de Secretos
 # -------------------------------------------------
-az acr create -g $RG -n $ACR_NAME --sku Basic --admin-enabled true -l $LOC
+az keyvault create -n $KV_NAME -g $RG -l $LOC --enable-rbac-authorization true --sku standard
+
+# Importa TODO desde el .env.local al Key Vault automáticamente
+Get-Content $EnvFilePath | Where-Object { $_ -match '\S' -and $_ -notmatch '^#' } | ForEach-Object {
+    $pair = $_ -split '=',2
+    $kvSecretName = $pair[0].Trim().ToLower().Replace('_','-')
+    az keyvault secret set -n $kvSecretName --vault-name $KV_NAME --value $pair[1].Trim() > $null
+}
 
 # -------------------------------------------------
-# 3️⃣ AKS (with ACR attach, OIDC & Workload Identity)
+# 3️⃣ AKS con Workload Identity Habilitado
 # -------------------------------------------------
-az aks create `
-    -g $RG `
-    -n $AKS_NAME `
-    --node-count 1 `
-    --node-vm-size Standard_D2s_v7 `
-    --enable-oidc-issuer `
-    --enable-workload-identity `
-    --attach-acr $ACR_NAME `
-    --generate-ssh-keys `
-    -l $LOC
+az aks create -g $RG -n $AKS_NAME --node-count 1 --node-vm-size Standard_D2s_v7 --enable-oidc-issuer --enable-workload-identity --attach-acr $ACR_NAME --generate-ssh-keys -l $LOC
 
+# -------------------------------------------------
+# 4️⃣ Azure Workload Identity (El corazón de la seguridad)
+# -------------------------------------------------
+# Crear Managed Identity para la aplicación
+az identity create --name $MI_NAME --resource-group $RG
+$MiClientId = az identity show --name $MI_NAME --resource-group $RG --query 'clientId' -o tsv
+
+# Otorgar permiso de LEER SECRETOS en el Key Vault a esta Identidad
+az role assignment create --role "Key Vault Secrets User" --assignee $MiClientId --scope /subscriptions/$SubscriptionId/resourceGroups/$RG/providers/Microsoft.KeyVault/vaults/$KV_NAME
+
+# Obtener el Issuer OIDC del clúster AKS
+$AksOidcIssuer = az aks show -n $AKS_NAME -g $RG --query "oidcIssuerProfile.issuerUrl" -o tsv
+
+# Crear la Credencial Federada uniendo Azure AD con Kubernetes
+az identity federated-credential create --name fed-meta-webhook --identity-name $MI_NAME --resource-group $RG --issuer $AksOidcIssuer --subject system:serviceaccount:ajo-namespace:meta-webhook-sa --audience api://AzureADTokenExchange
+
+# -------------------------------------------------
+# 5️⃣ Configuración en Kubernetes (ConfigMaps y ServiceAccount)
+# -------------------------------------------------
 az aks get-credentials -g $RG -n $AKS_NAME --overwrite-existing
+kubectl create namespace ajo-namespace --dry-run=client -o yaml | kubectl apply -f -
 
-# -------------------------------------------------
-# 4️⃣ Service Principal secret (clientSecret)
-# -------------------------------------------------
-az ad sp credential reset --id $SP_ID --query "{clientId:appId, clientSecret:password}" -o json
+# Crear el ServiceAccount con el ClientID de Azure
+@"
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: meta-webhook-sa
+  namespace: ajo-namespace
+  annotations:
+    azure.workload.identity/client-id: "`$MiClientId"
+"@ | kubectl apply -f -
 
-# -------------------------------------------------
-# 5️⃣ ACR credentials (password)
-# -------------------------------------------------
-az acr credential show -n $ACR_NAME -g $RG `
-    --query "{username:username,password:passwords[0].value}" -o json
-
-# -------------------------------------------------
-# 6️⃣ (Optional) APIM
-# -------------------------------------------------
-az apim create -g $RG -n $APIM_NAME -l $LOC `
-    --publisher-email "joffre.hermosilla@gmail.com" `
-    --publisher-name "Joffre Hermosilla" `
-    --sku-name Developer
-
-az apim show -g $RG -n $APIM_NAME --query "gatewayUrl" -o tsv
-
-# -------------------------------------------------
-# 7️⃣ Namespace & ConfigMaps
-# -------------------------------------------------
-kubectl create namespace ajo-namespace
-
-# meta‑webhook‑config
-cat <<EOF | kubectl apply -f -
+# Aplicar el ConfigMap Público (CDP Endpoint, etc)
+@"
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: meta-webhook-config
   namespace: ajo-namespace
 data:
-  CDP_ENDPOINT_URL: "https://dcs.adobedc.net/collection/e65e89630b3479fe88994d69106307462dabf30fe2f648b3d178aeded18b3d4d"
-  CDP_FLOW_ID: "086a7d7d-a5bd-41b9-bc84-b75ff53c9f51"
-EOF
-
-# ajo‑config (non‑secret data)
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ajo-config
-  namespace: ajo-namespace
-data:
-  KEYVAULT_NAME: "$KV_NAME"
-  REGION: "$LOC"
-  SPRING_PROFILES_ACTIVE: prod
-EOF
+  CDP_ENDPOINT_URL: "h8b3d4d"
+  CDP_FLOW_ID: "01"
+"@ | kubectl apply -f -
 
 # -------------------------------------------------
-# 8️⃣ CSI driver (if you want secret injection from KV)
+# 6️⃣ Github Actions Service Principal (Solo para el CI/CD)
 # -------------------------------------------------
-kubectl apply -f https://raw.githubusercontent.com/Azure/secrets-store-csi-driver-provider-azure/master/deploy/provider-azure-installer.yaml
+$spJson = az ad sp create-for-rbac -n "sp-github-actions" --role Contributor --scopes /subscriptions/`$SubscriptionId/resourceGroups/`$RG --sdk-auth -o json
 
-cat <<EOF | kubectl apply -f -
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: azure-keyvault-secrets
-  namespace: ajo-namespace
-spec:
-  provider: azure
-  secretObjects:
-  - secretName: kv-secrets
-    type: Opaque
-    data:
-    - objectName: AZURE_CLIENT_ID
-      key: clientId
-    - objectName: AZURE_CLIENT_SECRET
-      key: clientSecret
-    - objectName: DB_PASSWORD
-      key: dbPassword
-  parameters:
-    usePodIdentity: "false"
-    useVMManagedIdentity: "true"
-    keyvaultName: "$KV_NAME"
-    tenantId: "6c6cf498-31a0-4d91-ae90-cb1b77642638"
-    objects: |
-      array:
-        - |
-          objectName: AZURE_CLIENT_ID
-          objectType: secret
-        - |
-          objectName: AZURE_CLIENT_SECRET
-          objectType: secret
-        - |
-          objectName: DB_PASSWORD
-          objectType: secret
-EOF
-
-# -------------------------------------------------
-# 9️⃣ Deployment (replace image tag as needed)
-# -------------------------------------------------
-cat <<EOF | kubectl apply -f -
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ajo-app
-  namespace: ajo-namespace
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: ajo
-  template:
-    metadata:
-      labels:
-        app: ajo
-    spec:
-      serviceAccountName: default
-      containers:
-        - name: ajo-container
-          image: $ACR_NAME.azurecr.io/ajo-app:latest
-          ports:
-            - containerPort: 8080
-          envFrom:
-            - configMapRef:
-                name: meta-webhook-config
-            - configMapRef:
-                name: ajo-config
-          volumeMounts:
-            - name: kv-secrets
-              mountPath: "/mnt/secrets"
-              readOnly: true
-      volumes:
-        - name: kv-secrets
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: "azure-keyvault-secrets"
-EOF
-
-# -------------------------------------------------
-# 10️⃣ Service (LoadBalancer)
-# -------------------------------------------------
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: Service
-metadata:
-  name: ajo-svc
-  namespace: ajo-namespace
-spec:
-  type: LoadBalancer
-  selector:
-    app: ajo
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 8080
-EOF
+Write-Host "`n=== AGREGA ESTO A TUS GITHUB SECRETS ==="
+Write-Host "AZURE_CREDENTIALS=`$spJson"
 ```
 Running the script end‑to‑end will give you a **fully functional** environment ready for the CI/CD pipeline.
 ---
@@ -596,4 +518,438 @@ This demo project is provided **as‑is** under the MIT License. Feel free to ad
 
 ---
 
+
+## Flujo de Customer ID desde AJO → Meta WhatsApp → Webhook → Adobe CDP
+
+```
+
+mermaid
+sequenceDiagram
+    participant AJO as Adobe Journey Optimizer
+    participant META as Meta WhatsApp API
+    participant USER as Cliente WhatsApp
+    participant WEBHOOK as Quarkus Webhook (AKS)
+    participant CDP as Adobe Experience Platform CDP
+
+    Note over AJO: Customer Profile<br/>customerId=ronald123
+
+    AJO->>META: Send Template Message
+    Note right of AJO: Payload botón<br/>"payload":"SI|customerId=ronald123|templateName"
+
+    META->>USER: Entrega plantilla WhatsApp
+
+    USER->>META: Click Quick Reply
+
+    META->>WEBHOOK: POST /webhook
+    Note right of META: message.context.id<br/>button.payload<br/>wa_id
+
+    WEBHOOK->>WEBHOOK: Parse payload
+    Note over WEBHOOK: customerId=ro3<br/>reply=SI<br/>templateName=o_cef_mm_p_a
+
+    WEBHOOK->>CDP: POST Event
+    Note right of WEBHOOK: eventType=whatsapp.feedback.reply
+
+    CDP-->>WEBHOOK: 200 OK
+
+    WEBHOOK-->>META: 200 OK
+```
+## Arquitectura de Integración
+
+```
+
+mermaid
+flowchart LR
+
+    AJO["Adobe Journey Optimizer"]
+    META["Meta WhatsApp Cloud API"]
+    USER["Cliente WhatsApp"]
+    AKS["Quarkus Webhook<br>AKS Kubernetes"]
+    CDP["Adobe Experience Platform CDP"]
+
+    AJO -->|"Template + customerId en payload"| META
+
+    META -->|"Mensaje WhatsApp"| USER
+
+    USER -->|"Quick Reply"| META
+
+    META -->|"Webhook Event"| AKS
+
+    AKS -->|"Extrae customerId"| AKS
+
+    AKS -->|"whatsapp.feedback.reply"| CDP
+```
+## Transformación del Payload
+
+```
+
+mermaid
+flowchart TD
+
+    A["AJO Profile<br/>customerId=ronald123"]
+    B["Payload botón Meta<br/>SI|customerId=ronald123|templateName"]
+    C["Respuesta usuario"]
+    D["Webhook Quarkus"]
+    E["Evento XDM CDP"]
+
+    A --> B
+    B --> C
+    C --> D
+
+    D --> E
+
+    E -->|"identity.customerId = ronald123"| X["Adobe CDP"]
+    E -->|"feedback.reply = SI"| X
+    E -->|"templateName"| X
+    E -->|"wamId"| X
+```
+
+
+
+
+
+---
+
 **Enjoy building!** 🚀
+
+
+
+joffre [ ~ ]$ kubectl get deployment meta-whatsapp-webhook \ -n ajo-namespace \ -o yaml | grep -A120 "env:" - env: - name: KUBERNETES_NAMESPACE valueFrom: fieldRef: apiVersion: v1 fieldPath: metadata.namespace - name: CDP_FLOW_ID value: f3cffd10-8fe9-4952-9e39-91d03bab4f85 - name: OPENAI_API_KEY value: dummy - name: MINIMAX_API_KEY value: dummy - name: MOONSHOT_KEY value: dummy - name: CDP_AUTH_TOKEN value: dummy - name: GROQ_API_KEY value: dummy - name: META_VERIFY_TOKEN value: changeit - name: GOOGLE_AI_API_KEY value: dummy - name: MONGODB_URI value: mongodb://localhost:27017 - name: CDP_ENDPOINT_URL value: https://dcs.adobedc.net/collection/e65e89630b3479fe88994d69106307462dabf30fe2f648b3d178aeded18b3d4d - name: DEEPSEEK_API_KEY value: dummy envFrom: - configMapRef: name: meta-webhook-config image: acrmetaajodev001.azurecr.io/meta-whatsapp-webhook:84c364bimagePullPolicy: Always name: meta-whatsapp-webhook ports: - containerPort: 8080 name: http protocol: TCP resources: {} terminationMessagePath: /dev/termination-log terminationMessagePolicy: File dnsPolicy: ClusterFirst restartPolicy: Always schedulerName: default-scheduler securityContext: {} terminationGracePeriodSeconds: 30 status: availableReplicas: 1 conditions: - lastTransitionTime: "2026-06-20T14:36:24Z" lastUpdateTime: "2026-06-20T14:36:24Z" message: Deployment has minimum availability. reason: MinimumReplicasAvailable status: "True" type: Available - lastTransitionTime: "2026-06-16T04:26:40Z" lastUpdateTime: "2026-06-28T21:18:42Z" message: ReplicaSet "meta-whatsapp-webhook-559c6c8f49" has successfully progressed. reason: NewReplicaSetAvailable status: "True" type: Progressing observedGeneration: 9 readyReplicas: 1 replicas: 1 updatedReplicas: 1 joffre [ ~ ]$ kubectl describe secret meta-webhook-secrets \ -n ajo-namespace Name: meta-webhook-secrets Namespace: ajo-namespace Labels: <none> Annotations: <none> Type: Opaque Data ==== CDP_AUTH_TOKEN: 3 bytes DEEPSEEK_API_KEY: 3 bytes GOOGLE_AI_API_KEY: 3 bytes GROQ_API_KEY: 3 bytes META_VERIFY_TOKEN: 3 bytes MINIMAX_API_KEY: 3 bytes MONGODB_URI: 3 bytes MOONSHOT_KEY: 3 bytes OPENAI_API_KEY: 3 bytes joffre [ ~ ]$
+
+kubectl delete secret meta-webhook-secrets -n ajo-namespace secret "meta-webhook-secrets" deleted from ajo-namespace namespace joffre [ ~ ]$ kubectl create secret generic meta-webhook-secrets \ -n ajo-namespace \ --from-literal=MONGODB_URI='mongodb+srv://joffre:joffre@bootcamp-microservicios.c9yhl.mongodb.net/ajo_meta_db?retryWrites=true' \ --from-literal=META_VERIFY_TOKEN='changeit' secret/meta-webhook-secrets created joffre [ ~ ]$ kubectl describe secret meta-webhook-secrets -n ajo-namespace Name: meta-webhook-secrets Namespace: ajo-namespace Labels: <none> Annotations: <none> Type: Opaque Data ==== META_VERIFY_TOKEN: 8 bytes MONGODB_URI: 98 bytes joffre [ ~ ]$ grep -R "mongodb://localhost:27017" . joffre [ ~ ]$ grep -R "OPENAI_API_KEY" . ./.bash_history:kubectl create secret generic meta-webhook-secrets -n ajo-namespace --from-literal=MONGODB_URI='...' --from-literal=OPENAI_API_KEY='...' --from-literal=DEEPSEEK_API_KEY='...' --from-literal=GROQ_API_KEY='...' --from-literal=GOOGLE_AI_API_KEY='...' --from-literal=MOONSHOT_KEY='...' --from-literal=MINIMAX_API_KEY='...' --from-literal=CDP_AUTH_TOKEN='...' --from-literal=META_VERIFY_TOKEN='...' --dry-run=client -o yaml | kubectl apply -f - joffre [ ~ ]$ grep -R "quarkus.kubernetes.env" . joffre [ ~ ]$
+
+
+
+Pasted text.txt
+Documento
+donde creo el configmap
+ya puedo hacer push para que el github actions 
+ya puedo pushear ?
+offre [ ~ ]$ kubectl apply -f k8s/configmap.yaml
+error: the path "k8s/configmap.yaml" does not exist
+joffre [ ~ ]$ kubectl apply -f k8s/01-configmap.yaml
+error: the path "k8s/01-configmap.yaml" does not exist
+esto me dice otra IA 0s
+Run azure/login@v2
+  with:
+    creds: ***
+    enable-AzPSSession: false
+    environment: azurecloud
+    allow-no-subscriptions: false
+    audience: api://AzureADTokenExchange
+    auth-type: SERVICE_PRINCIPAL
+  env:
+    ACR_LOGIN_SERVER: ***
+    ACR_USERNAME: ***
+    ACR_PASSWORD: ***
+    AKS_CLUSTER: ***
+    AKS_RG: ***
+    IMAGE_NAME: meta-whatsapp-webhook
+    JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.11-10/x64
+    JAVA_HOME_21_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/21.0.11-10/x64
+    DOCKER_CONFIG: /home/runner/work/_temp/docker_login_1781583367601
+Error: Login failed with SyntaxError: Unexpected token '', "json {"cl"... is not valid JSON. Double check if the 'auth-type' is correct. Refer to https://github.com/Azure/login#readme for more information.
+me salio eso en github action
+Pasted text(1).txt
+Documento
+mport axios from "axios";
+
+export default defineComponent({
+ async run({ steps, $ }) {
+ const event = steps.trigger.event;
+
+ // ---------- HANDSHAKE ----------
+ if (event.method === "GET") {
+ const q = event.query;
+ if (
+ q["hub.mode"] === "subscribe" &&
+ q["hub.verify_token"] === "changeit"
+ ) {
+ return await $.respond({
+ status: 200,
+ body: q["hub.challenge"],
+ });
+ }
+ return await $.respond({ status: 403 });
+ }
+
+ // ---------- EVENTO META ----------
+ if (event.method === "POST") {
+ const value = event.body?.entry?.[0]?.changes?.[0]?.value;
+ const message = value?.messages?.[0];
+ const contact = value?.contacts?.[0];
+
+ if (!message || !contact) {
+ return await $.respond({ status: 200 });
+ }
+
+ // ✅ Identidad real del cliente
+ const waId = contact.wa_id;
+ 
+ // ✅ IDs de mensaje
+ const replyWamId = message.id;
+ const originalWamId = message.context?.id || null;
+
+ // ✅ Respuesta del usuario
+ let buttonReply = null;
+ if (message.type === "button") {
+ buttonReply = message.button?.text;
+ }
+ if (message.type === "text") {
+ buttonReply = message.text?.body;
+ }
+
+ // ✅ Payload CDP
+ const cdpPayload = {
+ _bcp: {
+ identity:{
+ customerId:"joffre1234"
+ },
+ transient: {
+ customer: {
+ feedback: {
+ reply: buttonReply,
+ channel: "whatsapp",
+ templateName: "o_018003_bid_mm_cef_casodeuso_paso3",
+ wamId: originalWamId,
+ },
+ },
+ },
+ },
+ 
+ _id: crypto.randomUUID(),
+ eventType: "whatsapp.feedback.reply",
+
+ timestamp: new Date().toISOString(),
+ };
+
+ // ✅ Endpoint Adobe CDP
+ const url =
+ "https://dcs";
+
+ // ✅ Envío a CDP
+ await axios.post(url, cdpPayload, {
+ headers: {
+ "Content-Type": "application/json",
+ "x-adobe-flow-id":
+ "086a7d7d-a5bd-41b9-bc84-b75ff53c9f51",
+ },
+ });
+
+ return await $.respond({
+ status: 200,
+ body: {
+ message: "Event received",
+ },
+ });
+ }
+ },
+});
+
+
+curl --location --request POST 'https://graph.facebook.com/v22.0/1039463512592670/messages' \
+--header 'Authorization: Bearer EAAVSoi2xF7YBRk4fC' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "messaging_product": "whatsapp",
+  "to": "51989168761",
+  "type": "template",
+  "template": {
+    "name": "o_cef_mm_p_automatico_util_v3",
+    "language": {
+      "code": "es_PE"
+    },
+    "components": [
+      {
+        "type": "header",
+        "parameters": [
+          {
+            "type": "image",
+            "image": {
+              "link": "https"
+            }
+          }
+        ]
+      },
+      {
+        "type": "body",
+        "parameters": [
+          {
+            "type": "text",
+            "text": "Joffre"
+          }
+        ]
+      },
+      {
+        "type": "button",
+        "sub_type": "quick_reply",
+        "index": "1",
+        "parameters": [
+          {
+            "type": "payload",
+            "payload": "En otro momento|customerId=ronald123|o_cef_mm_p_automatico_util_v3" 
+          }
+        ]
+      }
+    ]
+  }
+}'
+
+dentro de la customizacion que se esta configurando en AJO 
+
+{
+	"messaging_product": "whatsapp",
+	"to": {
+		"toBeMapped": true,
+		"dataType": "string",
+		"label": "numeroTelefono"
+	},
+	"type": "template",
+	"template": {
+		"name": {
+			"toBeMapped": true,
+			"dataType": "string",
+			"label": "templateName"
+		},
+		"language": {
+			"code": "es_PE"
+		},
+		"components": [
+			{
+				"type": "header",
+				"parameters": [
+					{
+						"type": "image",
+						"image": {
+							"link": "https://fastly.picsum.photos/id/273/200/300.jpg?hmac=C0IK2DPqr03oiShSklDGIHBzHorcmVrky7A_uvBEzIM"
+						}
+					}
+				]
+			},
+			{
+				"type": "body",
+				"parameters": [
+					{
+						"type": "text",
+						"text": "Ronald"
+					}
+				]
+			}
+		]
+	}
+}
+
+
+{
+	"messaging_product": "string",
+	"contacts": [
+		{
+			"input": "string",
+			"wa_id": "string"
+		}
+	],
+	"messages": [
+		{
+			"message_status": "string",
+			"id": "string"
+		}
+	]
+}
+
+
+offre [ ~ ]$ kubectl get pods -n ajo-namespace
+NAME                                     READY   STATUS    RESTARTS   AGE
+meta-whatsapp-webhook-7b7dc8f847-q7wp7   1/1     Running   0          77s
+joffre [ ~ ]$ kubectl get pods -n ajo-namespacekubectl get pods -n ajo-namespace
+Error from server (NotFound): pods "get" not found
+Error from server (NotFound): pods "pods" not found
+joffre [ ~ ]$ kubectl logs meta-whatsapp-webhook-7b7dc8f847-q7wp7  -n ajo-namespace --previous
+Error from server (BadRequest): previous terminated container "meta-whatsapp-webhook" in pod "meta-whatsapp-webhook-7b7dc8f847-q7wp7" not found
+joffre [ ~ ]$ kubectl logs meta-whatsapp-webhook-7b7dc8f847-q7wp7 -n ajo-namespace --previous
+Error from server (BadRequest): previous terminated container "meta-whatsapp-webhook" in pod "meta-whatsapp-webhook-7b7dc8f847-q7wp7" not found
+joffre [ ~ ]$ kubectl logs meta-whatsapp-webhook-7b7dc8f847-q7wp7 -n ajo-namespace 
+__  ____  __  _____   ___  __ ____  ______ 
+ --/ __ \/ / / / _ | / _ \/ //_/ / / / __/ 
+ -/ /_/ / /_/ / __ |/ , _/ ,< / /_/ /\ \   
+--\___\_\____/_/ |_/_/|_/_/|_|\____/___/   
+2026-07-05 04:12:33,548 WARN  [io.qua.config] (main) Unrecognized configuration key "quarkus.azure.keyvault.config-ordinal" was provided; it will be ignored; verify that the dependency extension for this configuration is set or that you did not make a typo
+2026-07-05 04:12:34,453 INFO  [io.quarkus] (main) meta-whatsapp-webhook 1.0.0-SNAPSHOT on JVM (powered by Quarkus 3.10.0) started in 1.227s. Listening on: http://0.0.0.0:8080
+2026-07-05 04:12:34,454 INFO  [io.quarkus] (main) Profile prod activated. 
+2026-07-05 04:12:34,454 INFO  [io.quarkus] (main) Installed features: [azure-keyvault-secret, cdi, kubernetes, mongodb-client, mongodb-panache, narayana-jta, rest, rest-client, rest-client-jackson, rest-jackson, smallrye-context-propagation, smallrye-health, smallrye-openapi, vertx]
+2026-07-05 04:12:40,644 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:12:40 +0000] "GET /health/started HTTP/1.1" 200 45
+2026-07-05 04:12:40,981 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:12:40 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:12:50,550 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:12:50 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:12:50,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:12:50 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:00,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:00 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:00,975 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:00 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:10,550 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:10 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:10,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:10 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:20,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:20 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:21,005 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:21 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:30,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:30 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:30,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:30 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:40,550 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:40 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:40,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:40 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:13:50,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:13:50 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:13:50,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:13:50 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:00,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:00 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:00,982 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:00 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:10,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:10 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:10,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:10 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:20,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:20 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:20,973 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:20 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:30,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:30 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:30,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:30 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:40,550 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:40 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:40,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:40 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:14:50,550 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:14:50 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:14:50,974 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:14:50 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:15:00,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:15:00 +0000] "GET /health/live HTTP/1.1" 200 45
+2026-07-05 04:15:00,973 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-0) 10.224.0.4 - - [05/Jul/2026:04:15:00 +0000] "GET /health/ready HTTP/1.1" 200 147
+2026-07-05 04:15:10,549 INFO  [io.qua.htt.access-log] (vert.x-eventloop-thread-1) 10.224.0.4 - - [05/Jul/2026:04:15:10 +0000] "GET /health/live HTTP/1.1" 200 45
+joffre [ ~ ]$ curl -i "https://meta-ajo-webhook.eastus.cloudapp.azure.com/webhook?hub.mode=subscribe&hub.verify_token=changeit&hub.challenge=123456"
+HTTP/2 200 
+date: Sun, 05 Jul 2026 04:17:32 GMT
+content-type: text/plain;charset=UTF-8
+content-length: 6
+strict-transport-security: max-age=31536000; includeSubDomains
+
+123456joffre [kubectl get ingress -n ajo-namespaceespace
+NAME                            CLASS    HOSTS                                        ADDRESS        PORTS     AGE
+meta-whatsapp-webhook-ingress   <none>   meta-ajo-webhook.eastus.cloudapp.azure.com   20.241.207.1   80, 443   13d
+joffre [ ~ ]$ kubectl describe ingress meta-whatsapp-webhook-ingress -n ajo-namespace
+Name:             meta-whatsapp-webhook-ingress
+Labels:           <none>
+Namespace:        ajo-namespace
+Address:          20.241.207.1
+Ingress Class:    <none>
+Default backend:  <default>
+TLS:
+  meta-webhook-tls-secret terminates meta-ajo-webhook.eastus.cloudapp.azure.com
+Rules:
+  Host                                        Path  Backends
+  ----                                        ----  --------
+  meta-ajo-webhook.eastus.cloudapp.azure.com  
+                                              /webhook   meta-whatsapp-webhook:80 (10.244.0.213:8080)
+Annotations:                                  cert-manager.io/cluster-issuer: letsencrypt-prod
+                                              kubernetes.io/ingress.class: nginx
+                                              nginx.ingress.kubernetes.io/proxy-body-size: 10m
+                                              nginx.ingress.kubernetes.io/proxy-read-timeout: 60
+                                              nginx.ingress.kubernetes.io/proxy-send-timeout: 60
+                                              nginx.ingress.kubernetes.io/ssl-redirect: true
+Events:                                       <none>
+joffre [ ~ ]$ kubectl get svc -n ajo-namespace
+NAME                    TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+meta-whatsapp-webhook   ClusterIP   10.0.75.30   <none>        80/TCP    18d
+joffre [ ~ ]$ kubectl get endpoints -n ajo-namespace
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME                    ENDPOINTS           AGE
+meta-whatsapp-webhook   10.244.0.213:8080   18d
+joffre [ ~ ]$ 
+
+
+az aks get-credentials --resource-group rg-meta-ajo-dev --name aks-adobe-meta-dev
+
+
+offre [ ~ ]$ kubectl exec -it -n ajo-namespace deploy/meta-whatsapp-webhook -- printenv | grep MONGODB
+MONGODB_URI=mongodb+srv://joffre:joffre@bootcamp-microservicios.c9yhl.mongodb.net/ajo-cdp-meta-db?retryWrites=true&w=majority
+joffre [ ~ ]$ 

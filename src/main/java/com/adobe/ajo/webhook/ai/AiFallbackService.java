@@ -14,7 +14,7 @@ import java.util.function.Supplier;
 @ApplicationScoped
 public class AiFallbackService {
 
-    @ConfigProperty(name = "ai.openai.key") String openAiKey;
+    @ConfigProperty(name = "ai.openai.key", defaultValue = "dummy") String openAiKey;
     @ConfigProperty(name = "ai.deepseek.key") String deepSeekKey;
     @ConfigProperty(name = "ai.groq.key") String groqKey;
     @ConfigProperty(name = "ai.moonshot.key", defaultValue = "dummy") String moonshotKey;

@@ -1,42 +1,67 @@
 package com.adobe.ajo.webhook.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.List;
 
 public interface CdpModels {
 
-    record CdpPayload(
-        @JsonProperty("_bcp") Bcp bcp,
-        @JsonProperty("_id") String id,
-        String timestamp
-    ) {}
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        record CdpPayload(
 
-    record Bcp(
-        IdentityMap identityMap,
-        Transient transientData
-    ) {}
+                        @JsonProperty("_id") String id,
 
-    record IdentityMap(
-        List<WhatsappIdentity> whatsapp
-    ) {}
+                        String eventType,
 
-    record WhatsappIdentity(
-        String id,
-        boolean primary
-    ) {}
+                        String timestamp,
 
-    record Transient(
-        Customer customer
-    ) {}
+                        @JsonProperty("_bcp") Bcp bcp
 
-    record Customer(
-        Feedback feedback
-    ) {}
+        ) {
+        }
 
-    record Feedback(
-        String buttonReply,
-        String channel,
-        String templateWamId,
-        String wamId
-    ) {}
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        record Bcp(
+
+                        Identity identity,
+
+                        Transient transientData
+
+        ) {
+        }
+
+        record Identity(
+
+                        String customerId
+
+        ) {
+        }
+
+        record Transient(
+
+                        Customer customer
+
+        ) {
+        }
+
+        record Customer(
+
+                        Feedback feedback
+
+        ) {
+        }
+
+        record Feedback(
+
+                        String reply,
+
+                        String channel,
+
+                        String templateName,
+
+                        String templateWamId,
+
+                        String wamId
+
+        ) {
+        }
 }

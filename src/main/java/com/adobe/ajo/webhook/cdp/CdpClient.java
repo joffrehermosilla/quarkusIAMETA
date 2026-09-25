@@ -18,7 +18,16 @@ public interface CdpClient {
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    @ClientHeaderParam(name = "Authorization", value = "Bearer ${cdp.auth.token}")
+
+    // @ClientHeaderParam(name = "Authorization", value = "Bearer
+    // ${cdp.auth.token}")
+
     @ClientHeaderParam(name = "x-adobe-flow-id", value = "${cdp.flow.id}")
+
+    @ClientHeaderParam(name = "Accept", value = "application/json")
+
+    @ClientHeaderParam(name = "Content-Type", value = "application/json")
+
     Uni<Response> sendEvent(CdpPayload payload);
+
 }

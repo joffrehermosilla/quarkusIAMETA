@@ -7,6 +7,8 @@ import com.adobe.ajo.webhook.db.MetaEventLog;
 import com.adobe.ajo.webhook.model.CdpModels;
 import com.adobe.ajo.webhook.model.generated.*;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
@@ -26,6 +28,9 @@ public class WebhookResource implements WebhookApi {
 
     @Inject
     AiFallbackService aiService;
+
+    @Inject
+    ObjectMapper mapper;
 
     @ConfigProperty(name = "meta.verify.token")
     String verifyToken;
@@ -56,72 +61,206 @@ public class WebhookResource implements WebhookApi {
     }
 
     private boolean isValidValue(Value value) {
-        return value != null && 
-               value.getMessages() != null && !value.getMessages().isEmpty() &&
-               value.getContacts() != null && !value.getContacts().isEmpty();
+        return value != null &&
+                value.getMessages() != null && !value.getMessages().isEmpty() &&
+                value.getContacts() != null && !value.getContacts().isEmpty();
     }
 
     private Response processValue(Value value) {
-        var contact = value.getContacts().get(0);
-        var message = value.getMessages().get(0);
-        String messageType = message.getType();
 
-        System.out.println(">>> Processing message from: " + contact.getWaId() + " type: " + messageType);
+        Contact contact = value.getContacts().get(0);
 
-        String content = null;
-        if ("button".equals(messageType) && message.getButton() != null) {
-            content = message.getButton().getText();
-        } else if ("text".equals(messageType) && message.getText() != null) {
+        Message message = value.getMessages().get(0);
+
+        String type = message.getType();
+
+        String content = "";
+
+        String buttonPayload = null;
+
+        if ("text".equals(type) && message.getText() != null) {
             content = message.getText().getBody();
         }
 
-        // 1. Guardar en MongoDB
-        try {
-            MetaEventLog.create(contact.getWaId(), message.getId(), messageType, content)
-                .persist()
-                .await().indefinitely();
-            System.out.println(">>> Log saved to MongoDB");
-        } catch (Exception e) {
-            System.err.println("Error saving to DB: " + e.getMessage());
+        if ("button".equals(type) && message.getButton() != null) {
+
+            content = message.getButton().getText();
+
+            buttonPayload = message.getButton().getPayload();
+
         }
 
-        // 2. Regla de negocio
-        if ("text".equals(messageType)) {
-            String aiResponse = aiService.chat(content);
-            System.out.println(">>> AI responded: " + aiResponse);
-            return Response.ok(Map.of("message", "AI Processed", "ai_response", aiResponse)).build();
-        } else if ("button".equals(messageType)) {
-            return processWithCdp(contact.getWaId(), message, content);
-        }
-        
-        return Response.ok(Map.of("message", "Ignored")).build();
-    }
-
-    private Response processWithCdp(String waId, Message message, String buttonReply) {
-        System.out.println(">>> Sending to CDP: " + buttonReply);
-        String originalWamId = Optional.ofNullable(message.getContext())
+        String originalMessageId = Optional.ofNullable(message.getContext())
                 .map(Context::getId)
                 .orElse(null);
 
-        var payload = buildCdpPayload(waId, message.getId(), originalWamId, buttonReply);
+        MetaEventLog log = MetaEventLog.create(
+                contact.getWaId(),
+                message.getId(),
+                originalMessageId,
+                type,
+                content,
+                buttonPayload);
 
         try {
+
+            log.rawPayload = mapper.writeValueAsString(value);
+
+        } catch (JsonProcessingException e) {
+
+            log.rawPayload = "{}";
+
+        }
+
+        log.persist().await().indefinitely();
+
+        System.out.println("Saved inbound message.");
+
+        if ("text".equals(type)) {
+
+            String aiResponse = aiService.chat(content);
+
+            log.aiResponse = aiResponse;
+
+            log.status = "AI_PROCESSED";
+
+            log.update().await().indefinitely();
+
+            return Response.ok(
+                    Map.of(
+                            "message", "AI processed",
+                            "response", aiResponse))
+                    .build();
+        }
+
+        if ("button".equals(type)) {
+            return processWithCdp(
+                    log,
+                    content,
+                    buttonPayload);
+
+        }
+
+        return Response.ok().build();
+    }
+
+    private Response processWithCdp(
+
+            MetaEventLog log,
+
+            String buttonReply,
+
+            String buttonPayload) {
+        System.out.println(">>> Sending to CDP: " + buttonPayload);
+        String originalWamId = log.originalMessageId;
+        String customerId = extract(buttonPayload, "customerId");
+
+        String templateName = extract(buttonPayload, "templatename");
+        var payload = buildCdpPayload(
+
+                customerId,
+
+                templateName,
+
+                log.messageId,
+
+                originalWamId,
+
+                buttonReply);
+        try {
+
+            log.cdpPayload = mapper.writeValueAsString(payload);
+            System.out.println(
+                    mapper.writerWithDefaultPrettyPrinter()
+                            .writeValueAsString(payload));
             cdpClient.sendEvent(payload).await().indefinitely();
-            return Response.ok(Map.of("message", "Event sent to CDP")).build();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return Response.ok(Map.of("message", "Event processed with CDP error")).build();
+
+            log.sentToCdpAt = Instant.now();
+
+            log.status = "SENT_TO_CDP";
+
+            log.update().await().indefinitely();
+
+            return Response.ok(
+                    Map.of(
+                            "message",
+                            "Sent to CDP"))
+                    .build();
+
+        } catch (Exception ex) {
+
+            ex.printStackTrace();
+
+            log.status = "CDP_ERROR";
+
+            log.update().await().indefinitely();
+
+            return Response.ok(
+                    Map.of(
+                            "message",
+                            "CDP error"))
+                    .build();
+
         }
     }
 
-    private CdpModels.CdpPayload buildCdpPayload(String waId, String replyWamId, String originalWamId, String buttonReply) {
-        var whatsappIdentity = new CdpModels.WhatsappIdentity(waId, true);
-        var identityMap = new CdpModels.IdentityMap(List.of(whatsappIdentity));
-        var feedback = new CdpModels.Feedback(buttonReply, "whatsapp", originalWamId, replyWamId);
+    private CdpModels.CdpPayload buildCdpPayload(
+
+            String customerId,
+
+            String templateName,
+
+            String replyWamId,
+
+            String originalWamId,
+
+            String buttonReply) {
+
+        var identity = new CdpModels.Identity(customerId);
+
+        var feedback = new CdpModels.Feedback(
+                buttonReply,
+                "whatsapp",
+                templateName,
+                originalWamId,
+                replyWamId);
+
         var customer = new CdpModels.Customer(feedback);
+
         var transientData = new CdpModels.Transient(customer);
-        var bcp = new CdpModels.Bcp(identityMap, transientData);
-        
-        return new CdpModels.CdpPayload(bcp, UUID.randomUUID().toString(), Instant.now().toString());
+
+        var bcp = new CdpModels.Bcp(
+                identity,
+                transientData);
+
+        return new CdpModels.CdpPayload(
+
+                UUID.randomUUID().toString(),
+
+                "whatsapp.feedback.reply",
+
+                Instant.now().toString(),
+
+                bcp);
+
+    }
+
+    private String extract(String payload, String key) {
+
+        if (payload == null) {
+            return null;
+        }
+
+        for (String part : payload.split("\\|")) {
+
+            if (part.startsWith(key + "=")) {
+
+                return part.substring((key + "=").length());
+
+            }
+
+        }
+
+        return null;
     }
 }

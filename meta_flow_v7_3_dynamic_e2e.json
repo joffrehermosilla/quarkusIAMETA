@@ -1,0 +1,346 @@
+{
+  "routing_model": {
+    "WELCOME": [
+      "CARDS",
+      "LOANS"
+    ],
+    "CARDS": [
+      "CONFIRMATION"
+    ],
+    "LOANS": [
+      "CONFIRMATION"
+    ],
+    "CONFIRMATION": []
+  },
+  "data_api_version": "3.0",
+  "version": "7.3",
+  "screens": [
+    {
+      "id": "WELCOME",
+      "title": "Productos Banco",
+      "data": {
+        "first_name": {
+          "type": "string",
+          "__example__": "Joffre"
+        },
+        "notification": {
+          "type": "string",
+          "__example__": "Tienes ofertas preaprobadas en BCP"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "NavigationList",
+            "name": "product_category",
+            "list-items": [
+              {
+                "id": "cards_category",
+                "main-content": {
+                  "title": "Tarjetas",
+                  "metadata": "💳"
+                },
+                "on-click-action": {
+                  "name": "navigate",
+                  "next": {
+                    "type": "screen",
+                    "name": "CARDS"
+                  },
+                  "payload": {
+                    "first_name": "${data.first_name}",
+                    "notification": "${data.notification}",
+                    "product_name": "Tarjeta Premium",
+                    "product_url": "https://www.viabcp.com",
+                    "asset_url": "https://www.viabcp.com",
+                    "category": "Tarjetas",
+                    "product_id": "card_premium"
+                  }
+                }
+              },
+              {
+                "id": "loans_category",
+                "main-content": {
+                  "title": "Préstamos",
+                  "metadata": "💰"
+                },
+                "on-click-action": {
+                  "name": "navigate",
+                  "next": {
+                    "type": "screen",
+                    "name": "LOANS"
+                  },
+                  "payload": {
+                    "first_name": "${data.first_name}",
+                    "notification": "${data.notification}",
+                    "product_name": "Préstamo Personal",
+                    "product_url": "https://www.viabcp.com",
+                    "asset_url": "https://www.viabcp.com",
+                    "category": "Préstamos",
+                    "product_id": "personal_loan"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "CARDS",
+      "title": "Tarjetas",
+      "data": {
+        "first_name": {
+          "type": "string",
+          "__example__": "Joffre"
+        },
+        "notification": {
+          "type": "string",
+          "__example__": "Tienes ofertas disponibles"
+        },
+        "product_name": {
+          "type": "string",
+          "__example__": "Tarjeta Premium"
+        },
+        "product_url": {
+          "type": "string",
+          "__example__": "https://www.viabcp.com"
+        },
+        "asset_url": {
+          "type": "string",
+          "__example__": "https://www.viabcp.com"
+        },
+        "category": {
+          "type": "string",
+          "__example__": "Tarjetas"
+        },
+        "product_id": {
+          "type": "string",
+          "__example__": "card_premium"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "card_form",
+            "children": [
+              {
+                "type": "TextHeading",
+                "text": "`'Hola ' ${data.first_name} ' 👋'`"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.notification}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "card_product",
+                "label": "Tarjetas",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "card_classic",
+                    "title": "Tarjeta Clásica"
+                  },
+                  {
+                    "id": "card_gold",
+                    "title": "Tarjeta Gold"
+                  },
+                  {
+                    "id": "card_premium",
+                    "title": "Tarjeta Premium"
+                  }
+                ]
+              },
+              {
+                "type": "Footer",
+                "label": "Continuar",
+                "on-click-action": {
+                  "name": "navigate",
+                  "next": {
+                    "type": "screen",
+                    "name": "CONFIRMATION"
+                  },
+                  "payload": {
+                    "first_name": "${data.first_name}",
+                    "product_name": "${data.product_name}",
+                    "product_url": "${data.product_url}",
+                    "asset_url": "${data.asset_url}",
+                    "category": "${data.category}",
+                    "product_id": "${form.card_product}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "LOANS",
+      "title": "Préstamos",
+      "data": {
+        "first_name": {
+          "type": "string",
+          "__example__": "Joffre"
+        },
+        "notification": {
+          "type": "string",
+          "__example__": "Tienes préstamos preaprobados"
+        },
+        "product_name": {
+          "type": "string",
+          "__example__": "Préstamo Personal"
+        },
+        "product_url": {
+          "type": "string",
+          "__example__": "https://www.viabcp.com"
+        },
+        "asset_url": {
+          "type": "string",
+          "__example__": "https://www.viabcp.com"
+        },
+        "category": {
+          "type": "string",
+          "__example__": "Préstamos"
+        },
+        "product_id": {
+          "type": "string",
+          "__example__": "personal_loan"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "loan_form",
+            "children": [
+              {
+                "type": "TextHeading",
+                "text": "`'Hola ' ${data.first_name} ' 👋'`"
+              },
+              {
+                "type": "TextBody",
+                "text": "${data.notification}"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "loan_product",
+                "label": "Préstamos",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "personal_loan",
+                    "title": "Préstamo Personal"
+                  },
+                  {
+                    "id": "vehicle_loan",
+                    "title": "Préstamo Vehicular"
+                  },
+                  {
+                    "id": "home_loan",
+                    "title": "Préstamo Hipotecario"
+                  }
+                ]
+              },
+              {
+                "type": "Footer",
+                "label": "Continuar",
+                "on-click-action": {
+                  "name": "navigate",
+                  "next": {
+                    "type": "screen",
+                    "name": "CONFIRMATION"
+                  },
+                  "payload": {
+                    "first_name": "${data.first_name}",
+                    "product_name": "${data.product_name}",
+                    "product_url": "${data.product_url}",
+                    "asset_url": "${data.asset_url}",
+                    "category": "${data.category}",
+                    "product_id": "${form.loan_product}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "CONFIRMATION",
+      "title": "Confirmación",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "first_name": {
+          "type": "string",
+          "__example__": "Joffre"
+        },
+        "product_name": {
+          "type": "string",
+          "__example__": "Tarjeta Premium"
+        },
+        "product_url": {
+          "type": "string",
+          "__example__": "https://www.viabcp.com"
+        },
+        "asset_url": {
+          "type": "string",
+          "__example__": "https://www.viabcp.com"
+        },
+        "category": {
+          "type": "string",
+          "__example__": "Tarjetas"
+        },
+        "product_id": {
+          "type": "string",
+          "__example__": "card_premium"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextHeading",
+            "text": "`'¡Listo, ' ${data.first_name} '! 🎉'`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Categoría: ' ${data.category}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Producto seleccionado: ' ${data.product_id}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'Nombre de producto: ' ${data.product_name}`"
+          },
+          {
+            "type": "TextBody",
+            "text": "`'URL: ' ${data.product_url}`"
+          },
+          {
+            "type": "Footer",
+            "label": "Finalizar",
+            "on-click-action": {
+              "name": "complete",
+              "payload": {
+                "first_name": "${data.first_name}",
+                "product_name": "${data.product_name}",
+                "product_url": "${data.product_url}",
+                "asset_url": "${data.asset_url}",
+                "category": "${data.category}",
+                "product_id": "${data.product_id}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
